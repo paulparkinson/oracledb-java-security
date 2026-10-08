@@ -2,6 +2,8 @@
 
 **Not working end to end:** the pod obtains an OCI database token, but JDBC login returns `ORA-01017`. ADMIN/password login works; that is not the goal. See [status and next checks](STATUS.md).
 
+**Independent check:** `scripts/reference-client.py` uses Oracle's Python driver and explicit OKE SDK signer; it also returns ORA-01017. Run only in the approved OKE test pod with `reference-requirements.txt` installed, the same `OCI_REGION`, `OCI_COMPARTMENT_ID`, `OCI_DATABASE_ID`, a TCPS EZConnect+ `DB_DSN`, and the privately verified `EXPECTED_WORKLOAD_SUBJECT`. It never accepts database passwords or substitutes another principal. This is a diagnostic comparison, not a claim of certified workload-identity support. [Driver token authentication](https://python-oracledb.readthedocs.io/en/latest/user_guide/authentication_methods.html#oci-iam-token-based-authentication) · [OKE signer](https://docs.oracle.com/en-us/iaas/tools/python/latest/api/signing.html).
+
 ## Implementation
 
 - Explicit OKE SDK identity → database-scoped proof-of-possession token → JDBC token supplier → TCPS EZConnect+.
