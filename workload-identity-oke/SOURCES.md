@@ -2,6 +2,11 @@
 
 Reviewed 2026-10-08. Public sources only; internal correspondence is not a publishable source or proof of support.
 
+- [Exclusive instance/resource-principal database mappings](https://docs.oracle.com/en/database/oracle/oracle-database/26/dbseg/accessing-database-using-instance-principal-or-resource-principal.html): documents `IAM_PRINCIPAL_OCID` as an alternative to shared dynamic-group mappings. This corrects the overly broad assumption that every resource-principal login needs a dynamic group.
+- [Oracle A-Team OKE-to-ADB example](https://www.ateam-oracle.com/connecting-oracle-kubernetes-engine-oke-namespaces-to-autonomous-database-with-oci-iamconnecting-oracle-kubernetes-engine-oke-namespaces-to-autonomous-database-with-oci-iam): describes extracting the workload subject and using an exclusive mapping. Its dynamic-group example conflicts with the current OKE documentation; this evaluation instead uses workload-conditioned IAM policy and tests it directly.
+- [IAM login troubleshooting](https://docs.oracle.com/en/database/oracle/oracle-database/19/dbseg/troubleshooting-iam-connections.html): inspect database provider configuration and global mappings for ORA-01017; do not infer the exact cause from that code alone.
+- [ORA-18726](https://docs.oracle.com/en/error-help/db/ora-18726/): JDBC resource-provider lookup/acquisition failure; inspect sanitized causes separately from SQL authentication.
+
 - [OKE workload identity](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contenggrantingworkloadaccesstoresources.htm): enhanced-cluster requirement, principal conditions, Java provider, provider reuse, and the dynamic-group restriction.
 - [Database IAM users](https://docs.oracle.com/en/cloud/paas/autonomous-database/serverless/adbsb/iam-create-users.html): documented database IAM user mappings. Does not establish an OKE workload mapping for this evaluation.
 - [Database IAM groups and policies](https://docs.oracle.com/en/cloud/paas/autonomous-database/serverless/adbsb/iam-create-groups-policies.html): database IAM authorization background. The candidate policy in this repository is not a tested support claim.

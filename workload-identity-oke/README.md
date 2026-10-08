@@ -1,6 +1,6 @@
 # OKE workload identity → Oracle Database JDBC evaluation
 
-**Status: local implementation prepared; live pod/token/database tests are not yet run.** See [STATUS.md](STATUS.md) for dated evidence and blockers, [OPERATIONS.md](OPERATIONS.md) for recovery/cleanup, and [blog.html](blog.html) for the article.
+**Live status: OKE identity and financialdb-scoped token PASS; unauthorized service account rejected; JDBC login fails with ORA-01017.** Database-side inspection needs a working ADMIN credential. See [STATUS.md](STATUS.md) for evidence and blockers, [OPERATIONS.md](OPERATIONS.md) for recovery/cleanup, and [blog.html](blog.html) for the article.
 
 ## Question being tested
 
@@ -12,7 +12,7 @@ These are separate questions. An OKE identity token is not itself a database tok
 
 - Existing **enhanced** OKE cluster, operator access, and an approved isolated namespace. No new cluster is provisioned by this project.
 - Java 17+, Maven, Node.js for manifest generation, `kubectl`, OCI CLI, and a container builder/approved image registry.
-- Reachable IAM-enabled Autonomous Database and a supported database mapping for the tested identity. **OKE workload identities currently cannot be members of dynamic groups; do not invent an `IAM_GROUP_NAME` mapping for them.** A supported mapping remains an evaluation prerequisite, not something this repository creates automatically.
+- Reachable IAM-enabled Autonomous Database and a supported database mapping for the tested identity. **OKE workload identities currently cannot be members of dynamic groups; do not invent an `IAM_GROUP_NAME` mapping for them.** Oracle documents exclusive `IAM_PRINCIPAL_OCID` mappings; verify the actual workload subject and server configuration before creating a dedicated schema. This repository does not create that mapping automatically.
 - Public-CA TLS connection compatible with the driver's trust store; use the database-provided TLS hostname/service. All samples use TCPS EZConnect+, never `tnsnames.ora` or disabled certificate verification.
 - Administrative credentials used to provision IAM/resources are separate from runtime credentials. A registry pull credential, if required, is also separate; do not describe the entire deployment as credential-free.
 
@@ -23,7 +23,7 @@ Pinned test dependencies: JDBC **23.26.3.0.0**, OCI Java SDK **3.97.2**, JDBC OC
 ```sh
 cd workload-identity-oke
 mvn -B -ntp verify
-node --test scripts/render-job.test.cjs
+node --test scripts/*.test.cjs
 ```
 
 Set non-secret inputs using `config.env.example`. `check` validates inputs only; it makes no cloud or database call:
@@ -83,3 +83,17 @@ Keep sanitized job outcomes, pinned image digest/dependencies, timestamps, and o
 - `STATUS.md`, `OPERATIONS.md`, `SOURCES.md`: durable evidence, incidents, decisions and references.
 
 The source does not enable database IAM, create a database user, modify policies, or change network access automatically.
+
+## Source-build evaluation option
+
+The live run used `scripts/render-source-job.cjs` because Docker was unavailable locally. It produces an immutable, content-addressed ConfigMap containing only the POM and Java source/tests, plus a bounded Job. Set `DEMO_IMAGE` to a trusted **Maven/JDK image digest**, not the application image, then use the same approved kubeconfig and namespace:
+
+```sh
+export DEMO_IMAGE=docker.io/library/maven@sha256:f58d59b6273e785ac0a4477f6e9b5ba1d7731c75b906c0f7b34076f1851318cc
+export DEMO_RUN_ID=eval1
+node scripts/render-source-job.cjs identity | kubectl --kubeconfig "$DEMO_KUBECONFIG" apply -f -
+```
+
+This alternative downloads public Maven dependencies inside the test pod. It is an evaluation convenience, not the recommended production supply chain. Use the Dockerfile/prebuilt immutable application image for a controlled production-style pipeline. Source Jobs allow at least 15 minutes for the build, remain bounded, and do not need registry passwords. Source ConfigMaps are not removed by the Job TTL.
+
+For administrator mapping preparation only, `WRITE_PRINCIPAL_EVIDENCE=true` is accepted in `token` mode. It writes just the validated-format workload subject OCID to the pod termination message, not the token or key. Read it through authorized Kubernetes access, retain it privately and never commit it. Decoding this field is diagnostic; it does not itself verify a JWT signature or prove database authorization. Default logs omit the subject. Error diagnostics report exception classes and specific missing resource-principal setting names without their values.

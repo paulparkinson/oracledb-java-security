@@ -4,34 +4,64 @@ Last updated: **2026-10-08**. This is an engineering evaluation, not a productio
 
 ## Outcome
 
-**Implementation and offline tests pass. End-to-end OKE → database token → JDBC authentication is NOT YET VERIFIED.** No test workloads, policies or database mappings have been created by this evaluation.
+**OKE identity and financialdb-scoped token acquisition PASS; the denied-account control PASSes by rejection. JDBC login FAILS with ORA-01017.** An isolated namespace, two service accounts, test Jobs/source ConfigMaps and one narrowly scoped policy have been deployed with approval. No database users, passwords, data or identity-provider settings were changed.
 
 | Check | Observed outcome | Evidence / limit |
 |---|---|---|
 | Public JDBC provider review | Completed | Released OCI provider 1.1.0 and pinned public source select the generic resource-principal builder, not an explicit OKE builder. Runtime equivalence is not established. |
-| Maven compile, package and tests | PASS | 12 JUnit configuration tests, zero failures/errors; 2026-10-08 |
-| Kubernetes Job generator tests | PASS | 8 Node tests, including isolation, negative account, digest pinning and secret exclusion |
+| Maven compile, package and tests | PASS | 14 JUnit tests, zero failures/errors; 2026-10-08 |
+| Kubernetes Job generator tests | PASS | 11 Node tests, including isolation, negative account, digest pinning, source bundle and private evidence opt-in |
 | Offline configuration executable | PASS | Ran packaged Java `check` with non-secret example inputs; no network/database call |
 | Blog rendering | PASS | Headless Chromium at 1360px and 390px; image loaded, local links resolve, no page overflow; screenshots visually reviewed |
 | Intended OCI tenancy | Located | Operator read-only inventory confirmed the requested tenancy; resource identifiers kept outside Git |
 | Current enhanced OKE cluster | Reachable | ACTIVE; Kubernetes v1.36.0; two Ready nodes on read-only inspection |
 | Target Autonomous Database | Located | AVAILABLE; optional mTLS advertised. This does not establish IAM configuration, mapping or SQL connectivity. |
-| Explicit OKE identity inside a pod | NOT RUN | Isolated deployment approval pending |
-| Database-scoped token issuance | NOT RUN | Scoped policy approval and service compatibility unverified |
-| JDBC session with expected identity | NOT RUN | Requires token success and a supported database mapping |
-| Negative service-account control | NOT RUN | Must be interpreted against a successful matching positive control |
-| Native `OCI_RESOURCE_PRINCIPAL` comparison | NOT RUN | Do not infer behavior from compilation/source inspection |
+| Explicit OKE identity inside a pod | PASS | `jdbc-allowed-identity-live1`; 18:11:20 UTC |
+| Database-scoped token issuance | PASS | `jdbc-allowed-token-live1`; 18:12:47 UTC; exact financialdb scope |
+| JDBC session with expected identity | FAIL | `jdbc-allowed-jdbc-live1`; 18:16:14 UTC; ORA-01017; no successful SQL session |
+| Negative service-account control | PASS (rejected) | `jdbc-denied-token-live1`; 18:15:04 UTC; identity succeeds, token request returns HTTP 404 NotAuthorizedOrNotFound |
+| Native `OCI_RESOURCE_PRINCIPAL` comparison | FAIL | `jdbc-allowed-native-resource-principal-live1`; 18:16:09 UTC; ORA-18726; provider acquisition fails |
+| Native-provider cause | CONFIRMED | Diagnostic rerun identifies missing `OCI_RESOURCE_PRINCIPAL_VERSION`; value never logged |
+| Private workload subject capture | PASS | `jdbc-allowed-token-evidence1`; 18:20:18 UTC; workload OCID only in private pod termination metadata, no JWT/key |
 | Token renewal across physical connections | NOT RUN | Requires initial login success and observed subsequent token acquisition |
 
 ## Open decisions and prerequisites
 
-1. Approve a dedicated namespace, two test service accounts, bounded Jobs and narrowly scoped IAM policy on the existing enhanced cluster. No new cluster is needed.
-2. Confirm the effective operator principal before cloud mutation. One existing CLI profile can perform discovery but its configured user lookup returned 404; the profile whose user matches the requested email returned 401. This is not resolved by finding the email in the tenancy's user list.
-3. Confirm an approved image registry and push/pull mechanism. Never embed registry passwords in manifests or the image.
-4. Establish whether the identity-dataplane/database combination supports this workload principal and what database mapping is documented. OKE identities cannot currently join dynamic groups. No substitute mapping is invented here.
-5. Keep the repository private pending clearance. Internal email text and participant details are excluded.
+1. Obtain the current financialdb ADMIN credential through the existing private financial setup configuration. Its stored ADMIN login returns ORA-01017. The FINANCIAL application account successfully opens a session but cannot query V$PARAMETER (ORA-00942). Do not reset passwords or grant the application account administrative privileges.
+2. Inspect `identity_provider_type` and existing global mappings. Oracle documents exclusive `IAM_PRINCIPAL_OCID` mappings, and an A-Team article applies this to OKE workloads. Validate the actual workload subject against that mechanism; do not invent a dynamic-group mapping or replace another external identity provider.
+3. Create only an explicitly approved dedicated mapping with CREATE SESSION, if the database configuration supports it, and rerun JDBC, negative and renewal tests. No schema mapping has been created yet.
+4. Deployment approval was received. Kubernetes authenticated the existing native OCI operator in the intended tenancy; it is not the separate federated email-account profile, whose credentials failed. No claim is made that the federated profile performed these operations.
+5. Docker was unavailable; the live evaluation used a public, digest-pinned Maven container to build the source in a bounded Job. No image registry credential was added. Repository visibility remains private; internal correspondence is excluded.
+
+## Deployment inventory (non-secret summary)
+
+- Existing cluster: **financial-demo**, Frankfurt; namespace **jdbc-workload-identity**.
+- Existing database: **financialdb**; server-authenticated TLS endpoint, port **1521**. The optional mutual-TLS endpoint is different; no wallet is mounted in test pods.
+- Service accounts: **jdbc-allowed**, **jdbc-denied**; no added cluster-wide RBAC permissions.
+- Policy: **jdbc-workload-identity-financialdb**, scoped to the exact cluster/namespace/allowed service account and financialdb. Existing policies were preserved. Root-policy inspection found no statements containing `workload`; the live negative control provides the stronger authorization evidence.
+- Image: `docker.io/library/maven@sha256:f58d59b6273e785ac0a4477f6e9b5ba1d7731c75b906c0f7b34076f1851318cc`.
+- Initial source bundle SHA-256 prefix: `8b143189e727`; exact source digest is recorded on each Job's `evaluation.source.sha256` annotation. Later diagnostic Jobs use a new immutable source bundle.
+- No LoadBalancer, public service, new cluster, database restart or inventory mutation was performed. Finished Jobs expire after 24 hours; namespace, policy, service accounts and source ConfigMaps remain until reviewed cleanup.
+
+## Current diagnosis
+
+| Hypothesis | Confidence | Evidence / gap |
+|---|---|---|
+| Database IAM configuration or workload mapping is missing/incompatible | Medium, 7/10 | OKE and scoped token succeed; JDBC gets ORA-01017. Database admin inspection is blocked, so the exact setting is unconfirmed. |
+| Native JDBC resource-principal acquisition is not configured for this OKE pod | High, 8/10 | Separate unchanged-provider Job fails with ORA-18726, before a SQL session; no resource-principal environment was injected. |
+| Current financialdb or cluster outage | Low, 1/10 | Nodes Ready; workload token tests complete; existing FINANCIAL application login succeeds. |
+
+Read-only evidence includes the OKE discovery/workload-identity collectors, exact policy inspection, Job results, and a separate FINANCIAL application session. The collector's keyword-based “anomalies” include normal token projections; they are not independently confirmed incidents.
 
 ## Incident and interruption log
+
+### 2026-10-08 — database-side verification blocked
+
+- The GCP repository's credentials target a different database, not financialdb. They were not used in any OKE workload.
+- The financial setup file targets the correct financialdb, but its stored ADMIN login also returns ORA-01017. Its FINANCIAL application login works; this is not evidence of a database outage.
+- The application user lacks access to the administrative parameter view. No privilege escalation, password reset, identity-provider replacement or database restart was attempted.
+- Requested the current ADMIN credential through the existing private configuration file, not chat.
+- Retried after the operator updated the file at 18:21:31 UTC; ADMIN still returned ORA-01017. Checked parsing for stray quotes, variable expressions and escape characters; none were present. Further login attempts paused pending verification to avoid repeated failed logins.
 
 ### 2026-10-08 — stale local Kubernetes context
 

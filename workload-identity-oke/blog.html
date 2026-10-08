@@ -15,25 +15,25 @@
     <div class="eyebrow">Oracle AI Database · Java security</div>
     <h1>Testing OKE Workload Identity for Oracle Database JDBC Authentication</h1>
     <p class="subtitle">A Java test harness that separates pod identity, database-token issuance and a verified SQL session.</p>
-    <p class="meta">Engineering evaluation · Updated October 8, 2026 · Live database validation pending</p>
+    <p class="meta">Live engineering evaluation · October 8, 2026 · OKE/token tests pass; SQL login blocked</p>
   </header>
-  <figure><img src="assets/identity-boundaries.svg" width="1200" height="540" alt="Three independent checks: an OKE workload signing identity, a database-scoped proof-of-possession token, and a TCPS JDBC session mapped to the expected user. Live validation is pending."><figcaption>Proposed evaluation flow, not a screenshot of a successful database connection.</figcaption></figure>
+  <figure><img src="assets/identity-boundaries.svg" width="1200" height="540" alt="Three independent checks: OKE workload signing identity and database-scoped token issuance pass; the TCPS JDBC login is rejected and database-side inspection remains blocked."><figcaption>Observed evaluation boundaries; this is not a successful SQL-login screenshot.</figcaption></figure>
   <section aria-labelledby="takeaways"><h2 id="takeaways">Key Takeaways</h2>
     <ul>
-      <li>The repository builds and passes its offline tests; end-to-end OKE database authentication has not yet been demonstrated.</li>
-      <li>The explicit OKE path and the existing JDBC resource-principal setting are tested separately.</li>
+      <li>A real OKE pod acquires its workload identity and a financialdb-scoped token; a different service account is denied.</li>
+      <li>The explicit OKE path works through token acquisition; the unchanged JDBC resource-principal setting fails in this pod.</li>
       <li>A database token is only an intermediate result. Success requires a fresh JDBC session with the expected database identity.</li>
       <li>No password, local API key or node-principal fallback is used to turn a failed workload test into an apparent success.</li>
     </ul>
   </section>
   <section><h2>Can an OKE Java pod connect without an application password?</h2>
-    <p>This project implements a way to test that question; it does not yet establish that the complete integration works. The current evidence is a successful Java build, configuration and manifest tests, and read-only discovery of an existing enhanced cluster and Autonomous Database. In-pod authentication and SQL login remain untested.</p>
+    <p>The pod can obtain its workload identity and a database-scoped token without an application password. We verified both on the existing enhanced OKE cluster against financialdb. However, the subsequent JDBC login was rejected with <code>ORA-01017</code>, so this is not yet a successful end-to-end database integration.</p>
     <p>The distinction matters: obtaining a workload signing identity, receiving an OCI database token and opening an authorized database session are different boundaries. Our harness reports them separately and stops on failure. See the dated <a href="STATUS.md">evaluation status</a> for the latest observed results.</p>
-    <aside class="notice"><p><strong>Important prerequisite:</strong> Oracle documents OKE workload identities for enhanced clusters and states that these identities cannot currently be used with dynamic groups. A supported database mapping is therefore an unresolved prerequisite here, not something to assume from resource-principal examples. <a href="https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contenggrantingworkloadaccesstoresources.htm">OKE workload identity documentation</a>.</p></aside>
+    <aside class="notice"><p><strong>Mapping is a separate prerequisite:</strong> OKE documentation excludes workload identities from dynamic groups. Oracle Database also documents exclusive <code>IAM_PRINCIPAL_OCID</code> mappings. This evaluation uses a workload-conditioned cloud policy and prepares a direct database mapping; it does not invent dynamic-group membership. The actual database configuration still needs administrator inspection. <a href="https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contenggrantingworkloadaccesstoresources.htm">OKE identities</a>; <a href="https://docs.oracle.com/en/database/oracle/oracle-database/26/dbseg/accessing-database-using-instance-principal-or-resource-principal.html">exclusive database mappings</a>.</p></aside>
   </section>
   <section><h2>Two paths answer two different questions</h2>
     <p>The explicit path constructs <code>OkeWorkloadIdentityAuthenticationDetailsProvider</code>. A scoped identity-dataplane request then attempts to obtain a database proof-of-possession token using a freshly generated RSA key. JDBC receives that token through a token supplier and connects with TCPS EZConnect+.</p>
-    <p>The comparison path instead sets <code>oracle.jdbc.tokenAuthentication=OCI_RESOURCE_PRINCIPAL</code>. The reviewed JDBC OCI provider selects the generic resource-principal builder. That source observation does not prove that the unchanged setting works—or cannot work—in this OKE environment. It needs its own runtime test and identity correlation. <a href="https://github.com/oracle/ojdbc-extensions/tree/821dedebfacc4ea5bced7713ffac4269b5b2571b">Reviewed JDBC extension source</a>.</p>
+    <p>The comparison path sets <code>oracle.jdbc.tokenAuthentication=OCI_RESOURCE_PRINCIPAL</code>. In this tested pod, it fails with <code>ORA-18726</code>; the sanitized cause identifies missing <code>OCI_RESOURCE_PRINCIPAL_VERSION</code>. The generic resource-principal builder selected by provider 1.1.0 did not automatically use the OKE identity. This result describes the tested versions and environment, not every possible future release. <a href="https://github.com/oracle/ojdbc-extensions/tree/821dedebfacc4ea5bced7713ffac4269b5b2571b">Reviewed provider source</a>; <a href="https://docs.oracle.com/en/error-help/db/ora-18726/">provider error reference</a>.</p>
     <div class="table-wrap"><table><thead><tr><th>Mode</th><th>What a success establishes</th></tr></thead><tbody>
       <tr><td><code>identity</code></td><td>The explicit OKE provider acquired a signing identity.</td></tr>
       <tr><td><code>token</code></td><td>The scoped request returned a parseable database token.</td></tr>
@@ -46,8 +46,8 @@
     <p>The implementation pins JDBC 23.26.3.0.0, OCI Java SDK 3.97.2 and JDBC OCI provider 1.1.0. These are the evaluation's dependency versions, not a claimed minimum-version support matrix.</p>
     <pre><code>cd workload-identity-oke
 mvn -B -ntp verify
-node --test scripts/render-job.test.cjs</code></pre>
-    <p>The current offline run passes 12 Java tests and 8 manifest-generator tests. They exercise configuration validation, credential exclusion, TLS URL requirements, isolated service accounts, immutable image references and bounded execution. They do not contact a database.</p>
+node --test scripts/*.test.cjs</code></pre>
+    <p>The current offline run passes 14 Java tests and 11 manifest-generator tests. They exercise configuration validation, credential exclusion, TLS URL requirements, isolated service accounts, immutable source/image references and bounded execution. They do not contact a database.</p>
     <ol>
       <li>Confirm the operator identity, exact enhanced cluster and target database. Preserve existing workloads and identity settings.</li>
       <li>Approve the isolated namespace, service accounts, image registry and narrowly scoped test policy. Resolve the documented database mapping before claiming readiness.</li>
@@ -56,6 +56,14 @@ node --test scripts/render-job.test.cjs</code></pre>
       <li>Run the native-provider comparison and, after a first login succeeds, test renewal across fresh physical connections.</li>
     </ol>
     <p>The <a href="README.md">README</a> contains the commands and configuration template; the <a href="OPERATIONS.md">operations guide</a> covers failure triage and reviewed cleanup.</p>
+    <h3>Observed live results</h3>
+    <div class="table-wrap"><table><thead><tr><th>Test</th><th>Observed result on October 8</th></tr></thead><tbody>
+      <tr><td>Allowed service account</td><td>OKE identity PASS; financialdb-scoped token PASS.</td></tr>
+      <tr><td>Denied service account</td><td>OKE identity PASS; database-token request rejected with HTTP 404 NotAuthorizedOrNotFound.</td></tr>
+      <tr><td>Explicit OKE + JDBC</td><td>Token acquisition succeeds; SQL login rejected with ORA-01017.</td></tr>
+      <tr><td>Unchanged resource-principal setting</td><td>Provider acquisition fails: ORA-18726; missing OCI_RESOURCE_PRINCIPAL_VERSION.</td></tr>
+    </tbody></table></div>
+    <p>These runs used a digest-pinned public Maven image and an immutable source ConfigMap in the dedicated namespace. The source-build option avoids local Docker and registry credentials, but downloads dependencies at test time; use a controlled prebuilt application image for production-style deployment.</p>
   </section>
   <section><h2>What the harness keeps out of the deployment</h2>
     <p>The explicit path has no password, API-key or instance-principal fallback. Jobs use a dedicated service account, non-root execution, a read-only root filesystem, resource limits and a deadline. The image contains neither a wallet nor a local OCI configuration. SQL only reads session metadata from <code>DUAL</code>; it does not change application data.</p>
@@ -63,13 +71,14 @@ node --test scripts/render-job.test.cjs</code></pre>
     <p>Administrative provisioning and registry access are separate credential domains. Removing an application-managed database password does not mean that every aspect of deployment is credential-free.</p>
   </section>
   <section><h2>What remains to be proved</h2>
-    <p>Live deployment approval, effective operator identity, image delivery, database-token acceptance and a supported workload-to-database mapping remain open. The source includes an evaluation policy template, not a policy certified by a successful cloud run. If a boundary rejects the principal, the next step is to record the exact boundary and obtain supported integration guidance—not to widen access or substitute a different principal.</p>
+    <p>The cloud policy has now been exercised with matching positive and negative controls. What remains is the database's IAM configuration and global-user mapping, followed by a successful JDBC login and renewal testing. The stored ADMIN credential is rejected, including after an operator update. A separate existing FINANCIAL application login succeeds but lacks access to the administrative parameter view. No password reset, database restart, user creation or authentication-provider replacement was performed.</p>
+    <p>An Oracle A-Team example describes using the workload token subject for a direct database mapping. Its dynamic-group instructions conflict with the current OKE guide, so we did not adopt those instructions. We captured only the workload subject privately for the administrator; no token or key is published. <a href="https://www.ateam-oracle.com/connecting-oracle-kubernetes-engine-oke-namespaces-to-autonomous-database-with-oci-iamconnecting-oracle-kubernetes-engine-oke-namespaces-to-autonomous-database-with-oci-iam">Oracle A-Team example</a>.</p>
     <p>A stale local Kubernetes context was also found during discovery. A separate kubeconfig reached the current cluster and its two Ready nodes. This was an access-configuration problem, not evidence of a current cluster outage. The status log preserves that distinction for the next operator.</p>
   </section>
   <section><h2>FAQ</h2>
-    <h3>Is this a working, production-supported OKE-to-database integration?</h3><p>Not yet established. The implementation and offline tests are complete, but pod identity, database-token issuance, SQL login and renewal need live verification and support confirmation.</p>
+    <h3>Is this a working, production-supported OKE-to-database integration?</h3><p>Not yet. Live pod identity, scoped token issuance and the denied-account control pass. SQL login is rejected, database-side inspection is blocked, and renewal has not been tested.</p>
     <h3>Can I give JDBC the Kubernetes service-account token directly?</h3><p>That is not what this implementation does. It uses the OKE signing identity to request a separate database-scoped token and supplies the database token and its proof-of-possession key to JDBC.</p>
-    <h3>Does the normal resource-principal setting avoid custom Java code?</h3><p>That is a separate test case. The explicit OKE implementation must not be presented as proof that <code>OCI_RESOURCE_PRINCIPAL</code> works unchanged.</p>
+    <h3>Does the normal resource-principal setting avoid custom Java code?</h3><p>Not in the unchanged configuration we tested: it fails during resource-provider acquisition. The explicit OKE implementation reaches database-token issuance, but still needs database-side configuration for a successful SQL session.</p>
     <h3>Where should I look when revisiting the project?</h3><p>Start with <a href="STATUS.md">STATUS.md</a>, then the <a href="README.md">README</a>, <a href="OPERATIONS.md">operations guide</a> and <a href="SOURCES.md">source and decision record</a>. They distinguish observed results from unresolved prerequisites.</p>
   </section>
   <footer>Evaluation article. No internal correspondence, credentials or customer resource identifiers are included. Publication clearance is required before making this private repository public.</footer>

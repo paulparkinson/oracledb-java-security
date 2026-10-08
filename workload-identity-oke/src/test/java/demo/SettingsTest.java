@@ -6,6 +6,14 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 class SettingsTest {
+    @Test void extractsOnlyWorkloadSubject() throws Exception {
+        String payload=java.util.Base64.getUrlEncoder().withoutPadding().encodeToString("{\"sub\":\"ocid1.workload.oc1.example\",\"other\":\"not-emitted\"}".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        assertEquals("ocid1.workload.oc1.example",WorkloadIdentityDemo.principalSubject(("header."+payload+".signature").toCharArray()));
+    }
+    @Test void rejectsNonWorkloadSubject() {
+        String payload=java.util.Base64.getUrlEncoder().withoutPadding().encodeToString("{\"sub\":\"ocid1.user.oc1.example\"}".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        assertThrows(IllegalArgumentException.class,()->WorkloadIdentityDemo.principalSubject(("header."+payload+".signature").toCharArray()));
+    }
     private Map<String,String> valid() {
         return new HashMap<>(Map.of("OCI_REGION","eu-frankfurt-1", "OCI_COMPARTMENT_ID","ocid1.compartment.oc1..example",
                 "OCI_DATABASE_ID","ocid1.autonomousdatabase.oc1.eu-frankfurt-1.example", "EXPECTED_DB_USER","OKE_JDBC_DEMO",

@@ -7,6 +7,10 @@ if (!/^\S+@sha256:[a-f0-9]{64}$/.test(env.DEMO_IMAGE || '')) throw Error('Set DE
 const serviceAccount = env.DEMO_SERVICE_ACCOUNT || 'jdbc-allowed';
 if (!['jdbc-allowed','jdbc-denied'].includes(serviceAccount)) throw Error('Unexpected service account');
 const keys = ['OCI_REGION'];
+if (env.WRITE_PRINCIPAL_EVIDENCE) {
+  if (env.WRITE_PRINCIPAL_EVIDENCE !== 'true' || mode !== 'token') throw Error('Private principal evidence is only available in token mode');
+  keys.push('WRITE_PRINCIPAL_EVIDENCE');
+}
 if (mode !== 'identity') keys.push('OCI_COMPARTMENT_ID','OCI_DATABASE_ID');
 if (['jdbc','native-resource-principal'].includes(mode)) keys.push('DB_JDBC_URL','EXPECTED_DB_USER');
 for (const key of keys) if (!env[key]) throw Error('Missing '+key);

@@ -62,6 +62,12 @@ public final class WorkloadIdentityDemo {
             // Do not print raw SDK/JDBC messages or stack traces: they can include sensitive request details.
             System.err.printf("time=%s stage=%s result=FAIL type=%s%n", Instant.now(), stage, e.getClass().getSimpleName());
             for (Throwable t = e; t != null; t = t.getCause()) {
+                System.err.printf("causeType=%s%n", t.getClass().getSimpleName());
+                String detail = t.getMessage();
+                for (String setting : java.util.List.of("OCI_RESOURCE_PRINCIPAL_VERSION", "OCI_RESOURCE_PRINCIPAL_RPST", "OCI_RESOURCE_PRINCIPAL_PRIVATE_PEM")) {
+                    if (detail != null && detail.contains(setting))
+                        System.err.printf("referencedSetting=%s present=%s%n", setting, System.getenv(setting) != null);
+                }
                 if (t instanceof BmcException b) System.err.printf("httpStatus=%d serviceCode=%s%n", b.getStatusCode(), safe(b.getServiceCode()));
                 if (t instanceof SQLException q) System.err.printf("oracleError=%d sqlState=%s%n", q.getErrorCode(), safe(q.getSQLState()));
             }
@@ -81,10 +87,26 @@ public final class WorkloadIdentityDemo {
             char[] jwt = client.generateScopedAccessToken(request).getSecurityToken().getToken().toCharArray();
             try {
                 AccessToken token = AccessToken.createJsonWebToken(jwt, pair.getPrivate());
+                if ("true".equals(System.getenv("WRITE_PRINCIPAL_EVIDENCE"))) {
+                    // Opt-in private Kubernetes metadata, never a token or a committed artifact.
+                    java.nio.file.Files.writeString(java.nio.file.Path.of("/dev/termination-log"), principalSubject(jwt));
+                }
                 System.out.printf("time=%s stage=database-token result=PASS acquisition=%d%n", Instant.now(), tokenRequests.incrementAndGet());
                 return token;
             } finally { Arrays.fill(jwt, '\0'); }
         } catch (Exception e) { throw new IllegalStateException("Database token acquisition failed", e); }
+    }
+    static String principalSubject(char[] token) throws Exception {
+        String[] parts = new String(token).split("\\.");
+        if (parts.length != 3) throw new IllegalArgumentException("Invalid JWT envelope");
+        byte[] payload = Base64.getUrlDecoder().decode(parts[1]);
+        try {
+            var claims = new com.fasterxml.jackson.databind.ObjectMapper().readTree(payload);
+            String subject = claims.path("sub").asText();
+            if (!subject.matches("ocid1\\.workload\\.[a-zA-Z0-9._:-]+"))
+                throw new IllegalArgumentException("Unexpected workload subject type");
+            return subject;
+        } finally { Arrays.fill(payload, (byte)0); }
     }
 
     private static OracleDataSource dataSource(Settings s) throws SQLException {

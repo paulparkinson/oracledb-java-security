@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="540" viewBox="0 0 1200 540" role="img" aria-labelledby="title desc">
   <title id="title">Oracle AI Database: three identity boundaries to verify</title>
-  <desc id="desc">An OKE Java pod acquires its workload signing identity, requests a scoped database token, and attempts a JDBC session. Each stage requires independent evidence; cloud validation is pending.</desc>
+  <desc id="desc">The live OKE workload identity and scoped database token tests pass. JDBC authentication returns ORA-01017 and database-side inspection remains blocked.</desc>
   <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 10 5 0 10" fill="#695d54"/></marker></defs>
   <rect width="1200" height="540" fill="#f6f3ee"/>
   <rect width="14" height="540" fill="#c74634"/>
@@ -22,7 +22,7 @@
       <text x="464" y="314">Exact database scope</text><text x="464" y="346">+ proof-of-possession key</text>
       <text x="849" y="314">TCPS EZConnect+</text><text x="849" y="346">+ expected database user</text>
     </g>
-    <text x="55" y="452" fill="#a73425" font-size="23" font-weight="700">Evaluation architecture — live validation pending</text>
+    <text x="55" y="452" fill="#a73425" font-size="23" font-weight="700">Live results: identity PASS · token PASS · SQL login rejected</text>
     <text x="55" y="491" fill="#62584f" font-size="20">No password, API-key or node-principal fallback in the explicit OKE path.</text>
   </g>
 </svg>
