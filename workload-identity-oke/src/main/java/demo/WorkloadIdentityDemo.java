@@ -86,10 +86,12 @@ public final class WorkloadIdentityDemo {
                             .scope(s.scope()).publicKey(Base64.getEncoder().encodeToString(pair.getPublic().getEncoded())).build()).build();
             char[] jwt = client.generateScopedAccessToken(request).getSecurityToken().getToken().toCharArray();
             try {
+                // Reject an unexpected identity type; decoding alone is not signature verification.
+                String subject = principalSubject(jwt);
                 AccessToken token = AccessToken.createJsonWebToken(jwt, pair.getPrivate());
                 if ("true".equals(System.getenv("WRITE_PRINCIPAL_EVIDENCE"))) {
                     // Opt-in private Kubernetes metadata, never a token or a committed artifact.
-                    java.nio.file.Files.writeString(java.nio.file.Path.of("/dev/termination-log"), principalSubject(jwt));
+                    java.nio.file.Files.writeString(java.nio.file.Path.of("/dev/termination-log"), subject);
                 }
                 System.out.printf("time=%s stage=database-token result=PASS acquisition=%d%n", Instant.now(), tokenRequests.incrementAndGet());
                 return token;

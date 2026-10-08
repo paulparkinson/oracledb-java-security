@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="540" viewBox="0 0 1200 540" role="img" aria-labelledby="title desc">
   <title id="title">Oracle AI Database: three identity boundaries to verify</title>
-  <desc id="desc">The live OKE workload identity and scoped database token tests pass. The last workload JDBC login returned ORA-01017. ADMIN inspection now confirms OCI IAM is enabled and the dedicated workload database user is absent.</desc>
+  <desc id="desc">The live OKE workload identity and scoped database token tests pass. OCI IAM is enabled and the dedicated workload database user exists with CREATE SESSION only, but post-mapping JDBC login still returns ORA-01017.</desc>
   <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 10 5 0 10" fill="#695d54"/></marker></defs>
   <rect width="1200" height="540" fill="#f6f3ee"/>
   <rect width="14" height="540" fill="#c74634"/>

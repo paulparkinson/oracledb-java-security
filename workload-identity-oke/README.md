@@ -1,6 +1,6 @@
 # OKE workload identity → Oracle Database JDBC evaluation
 
-**Live status: OKE identity and financialdb-scoped token PASS; unauthorized service account rejected; the last workload JDBC login failed with ORA-01017.** ADMIN access now works and confirms OCI_IAM is enabled; the dedicated OKE_JDBC_DEMO user is absent. Its creation awaits explicit approval before another end-to-end test. See [STATUS.md](STATUS.md) for evidence and blockers, [OPERATIONS.md](OPERATIONS.md) for recovery/cleanup, and [blog.html](blog.html) for the article.
+**Live status: OKE identity and financialdb-scoped token PASS; unauthorized service account rejected; workload JDBC login still fails with ORA-01017.** With approval, `OKE_JDBC_DEMO` was created and mapped to the verified workload OCID, with only `CREATE SESSION`. Read-back confirms the mapping and grants; the post-creation JDBC test still fails. See [STATUS.md](STATUS.md) for evidence and blockers, [OPERATIONS.md](OPERATIONS.md) for recovery/cleanup, and [blog.html](blog.html) for the article.
 
 ## Question being tested
 
@@ -73,6 +73,20 @@ Never mount `~/.oci`, passwords or static token files into the test pod. Do not 
 | `native-resource-principal` | Outcome of the existing JDBC provider path | That it used OKE unless its identity is independently correlated |
 
 Keep sanitized job outcomes, pinned image digest/dependencies, timestamps, and operator-correlated audit evidence in `STATUS.md`. Raw tokens, proof-of-possession keys, full claims and raw debug logs must never enter Git. A successful source review/build must never be promoted to a successful cloud test.
+
+## Dedicated database mapping
+
+The approved financialdb change created exactly one dedicated global user. The application still does not provision users automatically. For a new deployment, first verify the target database and the workload subject from the allowed account's privately captured token. Obtain approval, check that the name is unused, and replace the placeholder below with that exact workload OCID (not a Kubernetes token or an OCI user OCID):
+
+```sql
+CREATE USER OKE_JDBC_DEMO
+  IDENTIFIED GLOBALLY AS 'IAM_PRINCIPAL_OCID=<verified-workload-ocid>';
+GRANT CREATE SESSION TO OKE_JDBC_DEMO;
+```
+
+Do not add `CONNECT`, `RESOURCE`, DBA roles, tablespace quotas or application-table grants for this session-metadata test. If the user already exists, inspect it; do not overwrite another mapping. Verify `DBA_USERS.AUTHENTICATION_TYPE = 'GLOBAL'`, `ACCOUNT_STATUS = 'OPEN'`, and `EXTERNAL_NAME` equals the verified mapping. Oracle stores the mapping prefix as lowercase `iam_principal_ocid=`; compare the prefix case-insensitively while comparing the OCID exactly.
+
+Read back `DBA_SYS_PRIVS`: there must be exactly one direct system grant, `CREATE SESSION`, with `ADMIN_OPTION = 'NO'`. Confirm no direct grants in `DBA_ROLE_PRIVS`, `DBA_TAB_PRIVS` or `DBA_COL_PRIVS`. Preserve existing users and the existing `OCI_IAM` provider. These checks passed in financialdb; they do **not** establish that its server accepts this workload token. That still requires a successful `jdbc` run.
 
 ## Repository contents
 

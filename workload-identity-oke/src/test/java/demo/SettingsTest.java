@@ -6,6 +6,22 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 class SettingsTest {
+    @Test void jdbcTokenRetainsItsCopyWhenInputIsWiped() throws Exception {
+        // Synthetic data only: detect accidental destruction of the driver's token handoff.
+        var encoder = java.util.Base64.getUrlEncoder().withoutPadding();
+        var charset = java.nio.charset.StandardCharsets.UTF_8;
+        String header = encoder.encodeToString("{\"alg\":\"RS256\"}".getBytes(charset));
+        String body = encoder.encodeToString("{\"exp\":2222222222,\"sub\":\"synthetic\"}".getBytes(charset));
+        String original = header + "." + body + ".signature";
+        var generator = java.security.KeyPairGenerator.getInstance("RSA");
+        generator.initialize(2048);
+        char[] input = original.toCharArray();
+        var token = oracle.jdbc.AccessToken.createJsonWebToken(input, generator.generateKeyPair().getPrivate());
+        java.util.Arrays.fill(input, '\0');
+        char[] copy = token.toCharArray();
+        try { assertArrayEquals(original.toCharArray(), copy); }
+        finally { java.util.Arrays.fill(copy, '\0'); }
+    }
     @Test void extractsOnlyWorkloadSubject() throws Exception {
         String payload=java.util.Base64.getUrlEncoder().withoutPadding().encodeToString("{\"sub\":\"ocid1.workload.oc1.example\",\"other\":\"not-emitted\"}".getBytes(java.nio.charset.StandardCharsets.UTF_8));
         assertEquals("ocid1.workload.oc1.example",WorkloadIdentityDemo.principalSubject(("header."+payload+".signature").toCharArray()));

@@ -46,4 +46,6 @@ Jobs have a two-hour maximum configured deadline and a 24-hour finished-job TTL.
 
 Before cleanup, inspect the dedicated namespace and confirm that it contains only this evaluation's resources. Delete only named evaluation Jobs and the two service accounts using the explicit kubeconfig/namespace, then remove the empty dedicated namespace. Remove only the evaluation policy by its recorded OCID after approval; do not alter other policy statements. Remove the test image only after confirming no Jobs need it. Any approved database user/mapping needs its own reviewed rollback, preserving existing users and data.
 
+The current database addition is `OKE_JDBC_DEMO` only. For a separately approved rollback, verify the exact financialdb target, the stored workload mapping, zero owned objects and no active sessions first. Then drop only that user **without CASCADE**; stop if Oracle reports owned objects rather than deleting them. No rollback was executed during the login investigation. Do not drop or alter the pre-existing `TOKEN_DEMO` user.
+
 No automatic teardown command is provided for shared cloud infrastructure. Resource IDs and rollback records belong in a private operator inventory, not this repository.
