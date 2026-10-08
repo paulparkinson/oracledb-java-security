@@ -40,9 +40,12 @@ PYTHONPATH=/tmp/repro-deps python3 scripts/reference-client.py
 - Are different claims, mapping syntax or server patches required? Which verifier/mapping branch returns 1017?
 - Reconcile the contradictory [Oracle mapping guidance and A-Team example](SOURCES.md). Do not infer unsupported functionality solely from that contradiction.
 
-## Would GCP/GKE help?
+## Can we identify the rejection ourselves?
 
-- **Not a drop-in fix:** the OKE provider is platform-specific. [GKE federation](https://docs.cloud.google.com/kubernetes-engine/docs/concepts/workload-identity) does not itself supply the [OCI database token](https://docs.oracle.com/en-us/iaas/autonomous-database-serverless/doc/about-iam-authentication.html) our database expects. A secretless GKE design needs a supported trust/token-exchange/mapping path; none is validated here.
-- The evidence concerns the **cloud-identity/database-authentication boundary**, not a demonstrated Kubernetes-engine defect. Either issuer or consumer could be responsible. Password/API-key login from GKE would change the goal, not solve workload authentication.
+- **Current Serverless database:** accessible audit/diagnostic evidence has not exposed the rejecting check. Client trace confirms client preparation, not server acceptance.
+- **Self-managed server:** OS/SYSDBA access permits controlled server-side Oracle Net tracing and ADR inspection. That could narrow the failure, but does not guarantee the internal verifier reason is exposed. See [server tracing](https://docs.oracle.com/en/database/oracle/oracle-database/26/netag/setting-tracing-parameters.html).
+- **Local Docker/Podman database:** do not assume it reproduces this integration. Oracle's [OCI IAM integration environments](https://docs.oracle.com/en/database/oracle/oracle-database/26/dbseg/introduction-authenticating-and-authorizing-iam-users-oracle-dbaas.html) list OCI database services, not arbitrary local database containers. A multitenant CDB is not the same thing as an OCI IAM-enabled cloud service.
+- **ADB Dedicated:** supports OCI IAM, but [ADMIN remains restricted compared with SYS](https://docs.oracle.com/en/cloud/paas/autonomous-database/dedicated/adbdk/index.html). A new Dedicated instance is not a reliable way to obtain unrestricted server tracing.
+- **Best candidate if deeper self-service tracing is needed:** an isolated OCI Base Database Service PDB, which has documented IAM integration and [SSH/SYSDBA access](https://docs.oracle.com/en/cloud/paas/base-database/connect-bequeath/index.html). First verify version/patch compatibility; use newly scoped tokens and narrowly scoped policy/mapping for that target. Trace one failing workload login and one successful control, then restore tracing and retain only sanitized findings. This is a proposed diagnostic experiment, not a fix or an executed test.
 
-No second database, GKE deployment, permission expansion or external message was created.
+No additional database, permission expansion or external message was created.

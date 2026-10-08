@@ -1,0 +1,8 @@
+# Local-only material retained during relocation; never publish credentials or builds.
+**/.env
+**/.env.*
+!**/.env.example
+**/target/
+**/deepsec-vids/
+**/*.log
+**/.DS_Store

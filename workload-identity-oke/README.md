@@ -1,6 +1,6 @@
 # OKE workload identity → Oracle JDBC
 
-[Engineering handoff and minimal reproducer](ENGINEERING-HANDOFF.md) — verified failure, responsible engineering areas, exact questions and GKE implications.
+[Engineering handoff and minimal reproducer](ENGINEERING-HANDOFF.md) — verified failure, responsible engineering areas, exact questions and server-side diagnostic options.
 
 **Not working end to end:** workload-token login fails with `ORA-01017` in Java, Python and native SQL*Plus. A separate operator IAM-token login succeeds against the same financialdb endpoint; it is a control, not a fallback. Native tracing confirms TLS and PoP preparation. See [findings and remaining blocker](STATUS.md).
 
