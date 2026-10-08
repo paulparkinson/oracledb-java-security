@@ -20,7 +20,8 @@ Last updated: **2026-10-08**. This is an engineering evaluation, not a productio
 | Database-scoped token issuance | PASS | `jdbc-allowed-token-live1`; 18:12:47 UTC; exact financialdb scope |
 | Approved database mapping | PASS | Read-back at 19:04:29 UTC: GLOBAL, exact workload OCID, CREATE SESSION only; existing TOKEN_DEMO preserved |
 | ADMIN/password + selected wallet | PASS | Repository-root .env; TCPS EZConnect+ port 1522; 20:18:47 and 20:21:14 UTC; same database; authentication=PASSWORD |
-| Wallet-mounted OKE token login | NOT RUN | Optional code passes offline tests; wallet export to Kubernetes requires explicit destination approval |
+| Wallet-mounted OKE token login | FAIL | Approved `jdbc-allowed-jdbc-mtls1`; identity/token PASS, JDBC ORA-01017 at 20:45:05 UTC; TCPS EZConnect+ port 1522, selected wallet |
+| Temporary wallet cleanup | PASS | Deleted only jdbc-mtls-wallet after the Job finished; follow-up lookup confirms absence; original local wallet retained |
 | Post-mapping JDBC session | FAIL | Final-source `jdbc-allowed-jdbc-mappedfinal`; 19:18:20 UTC; ORA-01017; no successful workload SQL session |
 | Negative service-account control | PASS (rejected) | Post-mapping `jdbc-denied-token-mapped1`; 19:04:23 UTC; identity succeeds, token request returns HTTP 404 NotAuthorizedOrNotFound |
 | Token identity/scope diagnostics | PASS (limited) | Fresh token subject hash equals the mapped subject; workload type, unexpired token, past issue time, database/compartment scope present. These local checks do not establish database acceptance. |
@@ -40,13 +41,14 @@ Last updated: **2026-10-08**. This is an engineering evaluation, not a productio
 ## Deployment inventory (non-secret summary)
 
 - Existing cluster: **financial-demo**, Frankfurt; namespace **jdbc-workload-identity**.
-- Existing database: **financialdb**; server-authenticated TLS endpoint, port **1521**. The optional mutual-TLS endpoint is different; no wallet is mounted in test pods.
+- Existing database: **financialdb**; original server-authenticated TLS test uses port **1521**. The approved mTLS comparison uses the root `.env` endpoint on port **1522** and only `cwallet.sso` mounted read-only. Its temporary Secret has been removed.
 - Service accounts: **jdbc-allowed**, **jdbc-denied**; no added cluster-wide RBAC permissions.
 - Policy: **jdbc-workload-identity-financialdb**, scoped to the exact cluster/namespace/allowed service account and financialdb. Existing policies were preserved. Root-policy inspection found no statements containing `workload`; the live negative control provides the stronger authorization evidence.
 - Dedicated database user: **OKE_JDBC_DEMO**, exclusive workload-OCID mapping; only **CREATE SESSION**, no admin option, no direct role or object grants. This is the only database DDL performed by this evaluation.
 - Image: `docker.io/library/maven@sha256:f58d59b6273e785ac0a4477f6e9b5ba1d7731c75b906c0f7b34076f1851318cc`.
 - Initial source bundle SHA-256 prefix: `8b143189e727`; exact source digest is recorded on each Job's `evaluation.source.sha256` annotation. Later diagnostic Jobs use a new immutable source bundle.
 - Final-source post-mapping retest bundle SHA-256 prefix: `8a4474259fc7`; includes the workload-subject guard and synthetic token-copy regression, without temporary metadata logging.
+- Wallet-enabled comparison source bundle SHA-256 prefix: `53e5da82705b`, corresponding to the code in commit `9da42b1`; the Job passed its 18 Java tests before the live authentication attempt.
 - No LoadBalancer, public service, new cluster, database restart or inventory mutation was performed. Finished Jobs expire after 24 hours; namespace, policy, service accounts and source ConfigMaps remain until reviewed cleanup.
 
 ## Current diagnosis
@@ -56,6 +58,7 @@ Last updated: **2026-10-08**. This is an engineering evaluation, not a productio
 | Dedicated expected database user is missing | Resolved | Approved global user exists, OPEN, with exact subject mapping and CREATE SESSION only. Post-creation JDBC still fails. |
 | Stale/wrong workload subject or expired token | Not observed | Fresh token subject hash matches the mapped subject; issue/expiry checks pass; intended database and compartment appear in scope. |
 | Input wiping destroys the JDBC token | Ruled out for pinned driver | Synthetic regression confirms AccessToken retains a separate copy after the original character array is cleared. |
+| Supplying the corrected wallet resolves token login | Disproved by this comparison | ADMIN/password works locally with the selected wallet; the approved wallet-mounted OKE Job still returns ORA-01017. The root alias typo was a separate local configuration issue. |
 | Database rejects this workload token | Confirmed symptom; cause unresolved | Scoped token issuance succeeds; JDBC returns ORA-01017. ADMIN and FINANCIAL password sessions succeed separately. Neither proves workload-token support. |
 | Native JDBC resource-principal acquisition is not configured for this OKE pod | High, 8/10 | Separate unchanged-provider Job fails with ORA-18726, before a SQL session; no resource-principal environment was injected. |
 | Current financialdb or cluster outage | Low, 1/10 | Nodes Ready; workload token tests complete; existing FINANCIAL application login succeeds. |
@@ -63,6 +66,14 @@ Last updated: **2026-10-08**. This is an engineering evaluation, not a productio
 Read-only evidence includes the OKE discovery/workload-identity collectors, exact policy inspection, Job results, and a separate FINANCIAL application session. The collector's keyword-based “anomalies” include normal token projections; they are not independently confirmed incidents.
 
 ## Incident and interruption log
+
+### 2026-10-08 — approved wallet-mounted OKE comparison
+
+- Received explicit approval to copy only `cwallet.sso` into Secret `jdbc-mtls-wallet` in the existing financial-demo cluster / jdbc-workload-identity namespace, mount it read-only, and remove it afterward. No ADMIN password, wallet archive, root `.env` or alternate database credentials were uploaded.
+- Created the Secret only after confirming the name was unused. The isolated Job used the verified root `.env` TCPS EZConnect+ endpoint on port 1522, explicit OKE identity, and the existing scoped policy/user mapping. No IAM or database configuration was changed.
+- `jdbc-allowed-jdbc-mtls1` built successfully with 18 Java tests. OKE identity passed at 20:45:01 UTC; database-token acquisition passed at 20:45:03 UTC; JDBC failed with ORA-01017 at 20:45:05 UTC. It did not reach a SQL session, so the requested later connection rounds and renewal were not exercised.
+- After the Job reached terminal Failed status, deleted the temporary Secret and verified its absence. The original local wallet was not altered or removed. Sanitized test logs contain no wallet bytes, passwords or tokens.
+- Remaining boundary: workload-token login fails with both the original wallet-free TLS connection and the corrected wallet-mounted mTLS connection. This is not evidence of a bad ADMIN password or an unresolved wallet path. The exact cause of the token rejection remains unproved; investigate IAM/database-side token validation with Oracle rather than widening grants or presenting a password connection as workload success.
 
 ### 2026-10-08 — root .env wallet connection verified
 

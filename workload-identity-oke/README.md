@@ -50,7 +50,7 @@ For a database-provided mTLS endpoint, the harness supports a separately approve
 3. Set `DEMO_USE_MTLS_WALLET=true` when generating a `jdbc` or `native-resource-principal` Job. The generator mounts only that file read-only at `/var/run/oracle-wallet`, with mode 0440 and the existing non-root filesystem group. It does not copy root `.env` values or database passwords into the pod.
 4. Read the authentication outcome separately from TLS connectivity. After the test finishes, remove the temporary Secret under the approved cleanup scope; preserve the original local wallet.
 
-With the flag omitted, the existing wallet-free TLS path is unchanged. Wallet-mounted OKE testing is currently **NOT RUN**, pending explicit approval of the wallet export. The successful ADMIN test used the wallet locally.
+With the flag omitted, the existing wallet-free TLS path is unchanged. The approved wallet-mounted OKE test ran on October 8: workload identity and scoped token issuance passed, but JDBC still returned **ORA-01017**. The temporary Secret was removed and its absence verified; the original local wallet was preserved. ADMIN/password authentication works with that wallet, but it is not a substitute for the workload-token test.
 
 ## Live test procedure — approval required
 
