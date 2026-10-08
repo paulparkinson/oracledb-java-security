@@ -2,27 +2,23 @@
 
 **Goal: Java in OKE connects to financialdb using workload identity, without a database password. Not accomplished.**
 
-## What works
+## Verified on 2026-10-08
 
-- OKE authenticates the pod; OCI issues a financialdb-scoped database token.
-- ADMIN/password JDBC works with the selected wallet and TCPS EZConnect+.
-- `OKE_JDBC_DEMO` exists, is GLOBAL/OPEN, matches the token's workload subject, and has only `CREATE SESSION`.
+- **Workload identity and token issuance pass.** Database scope, subject, cluster, namespace and service account match the intended configuration. The token's RSA public key matches its proof-of-possession private key.
+- **Three workload-token clients fail with ORA-01017:** Java JDBC, independent Python thin and native SQL*Plus 23.26.3.0.0. JDBC fails with and without mTLS. No application SQL executes; renewal remains untested.
+- **Native client trace passes** TCPS, certificate-name checking, expiry, private-key loading and PoP header/signature creation. This verifies client preparation, not server acceptance of the signature. Native failure: **21:52:10 UTC**.
+- **Separate operator IAM-token control passes against the same financialdb endpoint:** `SESSION_USER=TOKEN_DEMO`, `AUTHENTICATION_METHOD=TOKEN_GLOBAL`, wallet-free TCPS EZConnect+, **21:54:58 UTC**. This is a diagnostic control, never a workload fallback.
+- `OKE_JDBC_DEMO` is GLOBAL/OPEN, has only `CREATE SESSION`, and is the sole exact mapping for the workload subject. The existing IAM policy is scoped to the intended workload and database. No mappings, grants or IAM settings were changed during these checks.
 
-## What fails
+## What this isolates
 
-- JDBC with the workload token returns **ORA-01017 before any SQL session opens**, both with and without the wallet. Renewal is therefore untested.
-- Independent Python comparison: Oracle driver **26.0.1**, OCI SDK **2.187.2**, same OKE service account, exact database scope and workload subject. Identity/token PASS; database login **ORA-01017** at **2026-10-08 21:28:02 UTC**. No password or wallet fallback. [Reproducer](scripts/reference-client.py).
-- Separately, the unchanged `OCI_RESOURCE_PRINCIPAL` provider fails before token acquisition (`ORA-18726`, missing resource-principal environment). The explicit OKE SDK path gets further but still cannot log in.
+- General database IAM-token authentication and the tested endpoint work. The unresolved failure is specific to workload-token validation or workload-principal resolution; it is not reproduced by the operator token.
+- Existing database audit provides only 1017, no resolved username and no additional reason. Available server traces did not identify the rejected check. Successful client signing does not prove that the server accepts the workload identity.
+- **Oracle's guidance conflicts:** the [Autonomous guide](https://docs.oracle.com/en-us/iaas/autonomous-database-serverless/doc/iam-create-groups-policies.html) requires dynamic-group mappings for resource principals; [OKE documentation](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contenggrantingworkloadaccesstoresources.htm) excludes workloads from dynamic groups. However, the [database guide](https://docs.oracle.com/en/database/oracle/oracle-database/26/dbseg/accessing-database-using-instance-principal-or-resource-principal.html) allows exclusive resource-principal mappings, and the [A-Team example](https://www.ateam-oracle.com/connecting-oracle-kubernetes-engine-oke-namespaces-to-autonomous-database-with-oci-iamconnecting-oracle-kubernetes-engine-oke-namespaces-to-autonomous-database-with-oci-iam) describes this exact workload-OCID approach. This is a compatibility question, **not proof of either support or non-support on financialdb**.
 
-## Why the exact cause is not established
+## Remaining decision
 
-- Database audit confirms the Python failure: return code 1017, no resolved database username, `ADDITIONAL_INFO` null. Existing cross-instance trace records contain no matching explanation in the test window. Cross-instance alert view access returns ORA-00942; local alert check found no relevant records.
-- Matching the subject, checking expiry and seeing the requested scope in the token do **not** prove that the database accepts its contents or proof-of-possession signature.
-- Two independent SDK/driver paths now fail, making a JDBC-only defect less likely. The shared token/scope/identity configuration and database validation/mapping/support remain unisolated; none is a confirmed root cause.
+- A fix requires identifying the database's workload-specific rejection or a verified mapping/configuration applicable to this deployment. No safe configuration-only fix has been established. Repeating password tests, broadening policy or silently switching principals does not resolve the goal.
+- No support request is planned. Further tests that change IAM, mappings, database settings or deployment targets require approval.
 
-## Next decisive checks
-
-- Request Oracle-assisted authentication diagnostics for the audited Python failure above and JDBC failure at **20:45:05 UTC**. Ask which token validation or principal-mapping check rejected the login, and whether this database supports the workload subject.
-- No tracing or database settings were changed. A support request or trace enablement needs approval; another password test will not resolve this question.
-
-JDBC versions: 23.26.3.0.0; OCI SDK 3.97.2; OCI provider 1.1.0. Python comparison Job and ConfigMap removed; earlier temporary wallet Secret removed; local wallet retained. No extra database grants or credential changes.
+Temporary Python/native Jobs and source ConfigMaps are removed; native token, key and raw client traces were pod-local and are gone. No database-side tracing was enabled. Earlier temporary wallet Secret is removed; the original local wallet is retained.

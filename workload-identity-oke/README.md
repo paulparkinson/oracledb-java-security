@@ -1,6 +1,6 @@
 # OKE workload identity → Oracle JDBC
 
-**Not working end to end:** the pod obtains an OCI database token, but JDBC login returns `ORA-01017`. ADMIN/password login works; that is not the goal. See [status and next checks](STATUS.md).
+**Not working end to end:** workload-token login fails with `ORA-01017` in Java, Python and native SQL*Plus. A separate operator IAM-token login succeeds against the same financialdb endpoint; it is a control, not a fallback. Native tracing confirms TLS and PoP preparation. See [findings and remaining blocker](STATUS.md).
 
 **Independent check:** `scripts/reference-client.py` uses Oracle's Python driver and explicit OKE SDK signer; it also returns ORA-01017. Run only in the approved OKE test pod with `reference-requirements.txt` installed, the same `OCI_REGION`, `OCI_COMPARTMENT_ID`, `OCI_DATABASE_ID`, a TCPS EZConnect+ `DB_DSN`, and the privately verified `EXPECTED_WORKLOAD_SUBJECT`. It never accepts database passwords or substitutes another principal. This is a diagnostic comparison, not a claim of certified workload-identity support. [Driver token authentication](https://python-oracledb.readthedocs.io/en/latest/user_guide/authentication_methods.html#oci-iam-token-based-authentication) · [OKE signer](https://docs.oracle.com/en-us/iaas/tools/python/latest/api/signing.html).
 
@@ -32,7 +32,7 @@ java -cp 'target/workload-identity-oke-0.1.0.jar:target/lib/*' demo.WorkloadIden
 ## Database and policy prerequisites
 
 - Review `iam-policy.example.txt`; scope access to the exact cluster, namespace, service account and database. Do not widen grants to troubleshoot login.
-- The dedicated mapping already exists in financialdb. For a new approved deployment only, verify the workload subject and that the user name is unused before running:
+- The following experimental mapping already exists in financialdb, but has **not** produced a successful workload login. Oracle's service-specific and general mapping guidance conflicts; see [sources](SOURCES.md). Do not treat this as a validated deployment recipe. A new test requires approval, a verified workload subject and an unused user name:
 
 ```sql
 CREATE USER OKE_JDBC_DEMO
