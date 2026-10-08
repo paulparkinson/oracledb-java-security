@@ -5,7 +5,7 @@ Moved from `oracle-ai-for-sustainable-dev/security/` to `oracledb-java-security/
 ## Articles
 
 - [Security Best Practices with the Oracle JDBC driver](oracle-jdbc-security-best-practices.html): OCI IAM/Entra tokens, vault password providers across five platforms, centralized configuration, safe SQL, TLS, least privilege, diagnostics, and resource management. All database address examples use EZConnect+.
-- [Passwordless Java Connections with OCI IAM and Microsoft Entra ID](java-jdbc-token-authentication-oci-iam-entra.html): database setup, file tokens, SDK suppliers, simplified provider properties, UCP, and authenticated-identity checks for both identity services.
+- [Passwordless Java Connections with OCI IAM and Microsoft Entra ID](../java-jdbc-token-authentication-oci-iam-entra.html): moved to the repository root; database setup, file tokens, SDK suppliers, complete instance/resource-principal examples, UCP, and authenticated-identity checks for both identity services.
 
 ## Oracle Deep Data Security
 

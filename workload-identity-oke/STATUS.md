@@ -16,11 +16,12 @@
 - Existing database audit provides only 1017, no resolved username and no additional reason. Available server traces did not identify the rejected check. Successful client signing does not prove that the server accepts the workload identity.
 - **Oracle's guidance conflicts:** the [Autonomous guide](https://docs.oracle.com/en-us/iaas/autonomous-database-serverless/doc/iam-create-groups-policies.html) requires dynamic-group mappings for resource principals; [OKE documentation](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contenggrantingworkloadaccesstoresources.htm) excludes workloads from dynamic groups. However, the [database guide](https://docs.oracle.com/en/database/oracle/oracle-database/26/dbseg/accessing-database-using-instance-principal-or-resource-principal.html) allows exclusive resource-principal mappings, and the [A-Team example](https://www.ateam-oracle.com/connecting-oracle-kubernetes-engine-oke-namespaces-to-autonomous-database-with-oci-iamconnecting-oracle-kubernetes-engine-oke-namespaces-to-autonomous-database-with-oci-iam) describes this exact workload-OCID approach. This is a compatibility question, **not proof of either support or non-support on financialdb**.
 
-## Remaining decision
+## Current next step
 
-- Use the [succinct engineering handoff and existing reproducer](ENGINEERING-HANDOFF.md). Lead with database-server IAM authentication and OCI IAM token engineering; no second-database comparison or GKE migration is planned.
+- The owner approved an [isolated Base Database server-tracing diagnostic](BASE-DATABASE-DIAGNOSTIC.md). Provisioning started October 8; it is not a migration or a demonstrated fix. GKE remains [notes only](../workload-identity-gke/README.md).
+- Use the [succinct engineering handoff and existing reproducer](ENGINEERING-HANDOFF.md). Lead with database-server IAM authentication and OCI IAM token engineering.
 
 - A fix requires identifying the database's workload-specific rejection or a verified mapping/configuration applicable to this deployment. No safe configuration-only fix has been established. Repeating password tests, broadening policy or silently switching principals does not resolve the goal.
-- No support request is planned. Further tests that change IAM, mappings, database settings or deployment targets require approval.
+- No support request is planned. The current approval covers the isolated diagnostic, not changes to shared financialdb settings.
 
 Temporary Python/native Jobs and source ConfigMaps are removed; native token, key and raw client traces were pod-local and are gone. No database-side tracing was enabled. Earlier temporary wallet Secret is removed; the original local wallet is retained.

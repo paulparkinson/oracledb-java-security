@@ -63,8 +63,8 @@
 <p class="eyebrow">Oracle AI Database · Java · JDBC · Identity</p>
 <h1>Passwordless Java Connections to Oracle AI Database 26ai with OCI IAM and Microsoft Entra ID</h1>
 <p class="subtitle">A complete, runnable guide to OCI and Entra token files and SDK suppliers, JDBC providers and connection pools—with database setup and Microsoft Entra identity configuration.</p>
-<p class="updated">By Paul Parkinson · Updated October 6, 2026 · Dependencies and references checked October 6, 2026</p>
-<figure class="cover"><img alt="Oracle AI Database security architecture connecting user and workload identities through an application and JDBC to database token validation and least-privilege authorization." height="660" src="images/e2e-security-cover.svg" width="1400"/><figcaption>Cloud identity, database mapping, TLS and token lifecycle work together to authenticate each new physical connection.</figcaption></figure>
+<p class="updated">By Paul Parkinson · Updated October 8, 2026 · Workload-principal examples build-tested October 8, 2026</p>
+<figure class="cover"><img alt="Oracle AI Database security architecture connecting user and workload identities through an application and JDBC to database token validation and least-privilege authorization." height="660" src="deepdatasecurity/images/e2e-security-cover.svg" width="1400"/><figcaption>Cloud identity, database mapping, TLS and token lifecycle work together to authenticate each new physical connection.</figcaption></figure>
 <h2 id="key-takeaways">Key Takeaways</h2>
 <ul>
 <li>Run the same read-only Java application with OCI or Entra token files, application-owned SDK suppliers, or JDBC providers.</li>
@@ -221,7 +221,8 @@ GRANT CREATE SESSION TO token_demo;
 
 <p>If required, inject <code>oracle.net.wallet_password</code> through the runtime secret facility. The wallet is a TLS credential, not the OCI token directory or Entra JWT file. TLS-only endpoints need no client wallet when the JVM trusts the server CA. Preserve the deployment's transport requirements.</p>
 <h2 id="clone-build-and-run-the-application">Build and run the application</h2>
-<pre><code class="language-bash">cd oracle-jdbc-token-auth-demo
+<pre><code class="language-bash">git clone https://github.com/paulparkinson/oracle-db-examples.git
+cd oracle-db-examples/java/jdbc-token-auth
 mvn -B verify
 ./run.sh --help
 
@@ -360,6 +361,7 @@ try (Connection c = reusable.getConnection()) {
 </code></pre>
 <p><code>config</code> is the application's validated <code>Settings</code> object. The cached supplier is shared by callers; Oracle's <a href="https://docs.oracle.com/en/database/oracle/oracle-database/26/jajdb/oracle/jdbc/AccessToken.html">AccessToken API</a> defines its expiry-aware behavior and serialization of calls into the acquisition supplier. The cache does not turn failed cloud authentication into a successful database session: acquisition failures must remain observable.</p>
 <h2 id="option-3-let-the-oci-provider-acquire-the-token">Option 3: Let the OCI provider acquire the token</h2>
+<p>Jump to the full <a href="#full-instance-principal-example">Compute instance-principal example</a>, <a href="#full-resource-principal-example">Data Science resource-principal example</a>, or <a href="#full-workload-java">complete Java program</a>.</p>
 <pre><code class="language-bash">./run.sh config/oci-config-file.properties jdbc
 ./run.sh config/oci-instance-principal.properties ucp
 ./run.sh config/oci-resource-principal.properties ucp
@@ -386,6 +388,182 @@ oracle.jdbc.tokenAuthentication=OCI_INTERACTIVE
 oracle.jdbc.ociCompartment=${OCI_COMPARTMENT_ID}
 oracle.jdbc.ociDatabase=${OCI_DATABASE_ID}
 </code></pre>
+<h3 id="complete-oci-workload-examples">Complete instance- and resource-principal examples</h3>
+<p>The following two recipes run the same complete Java program in different OCI runtimes. <strong>These examples compile and pass automated tests; live Compute/Data Science login and renewal have not yet been validated here.</strong> An API-key login is not evidence for either workload principal. The <a href="https://github.com/paulparkinson/oracle-db-examples/tree/main/java/jdbc-token-auth">source, pinned Maven dependencies and runnable profiles</a> are in <code>oracle-db-examples/java/jdbc-token-auth</code>; the <a href="https://github.com/paulparkinson/oracle-db-examples/blob/main/java/jdbc-token-auth/docs/oci-workload-principals.md">complete deployment guide</a> records the verification boundaries.</p>
+<p>Use a dedicated IAM-enabled Autonomous AI Database with a TLS endpoint reachable from the workload. Its administrator can enable IAM with the following call if it is not already enabled; do not switch a shared or Entra-configured database for this test:</p>
+<pre><code class="language-sql">BEGIN
+  DBMS_CLOUD_ADMIN.ENABLE_EXTERNAL_AUTHENTICATION(type =&gt; 'OCI_IAM');
+END;
+/</code></pre>
+<p>Both recipes follow Autonomous's service-specific dynamic-group/shared-schema mapping. Substitute real identifiers and identity-domain-qualified group names where necessary. The general Database Security Guide additionally describes exclusive principal-OCID mappings; do not assume all service/version combinations accept the same alternatives. See <a href="https://docs.oracle.com/en/cloud/paas/autonomous-database/serverless/adbsb/iam-create-groups-policies.html">Autonomous IAM policy guidance</a> and <a href="https://docs.oracle.com/en/database/oracle/oracle-database/26/dbseg/accessing-database-using-instance-principal-or-resource-principal.html">general principal mapping guidance</a>.</p>
+<h3 id="full-instance-principal-example">OCI_INSTANCE_PRINCIPAL: OCI Compute</h3>
+<ol>
+<li>Select a dedicated Compute VM with network access to the database and OCI IAM. Create dynamic group <code>JdbcInstanceDemo</code>, matching only that VM:
+<pre><code class="language-text">instance.id = '&lt;compute-instance-ocid&gt;'</code></pre></li>
+<li>Grant the group's documented Autonomous token-access policy, scoped to the database:
+<pre><code class="language-text">Allow dynamic-group JdbcInstanceDemo to use autonomous-database-family in compartment id &lt;database-compartment-ocid&gt; where target.id = '&lt;autonomous-database-ocid&gt;'</code></pre></li>
+<li>As database administrator, create the dedicated global schema with only session access:
+<pre><code class="language-sql">CREATE USER TOKEN_INSTANCE_DEMO
+  IDENTIFIED GLOBALLY AS 'IAM_GROUP_NAME=JdbcInstanceDemo';
+GRANT CREATE SESSION TO TOKEN_INSTANCE_DEMO;</code></pre></li>
+<li>On the VM, install Java 17+ and Maven, then build and run:
+<pre><code class="language-bash">git clone https://github.com/paulparkinson/oracle-db-examples.git
+cd oracle-db-examples/java/jdbc-token-auth
+mvn -B -ntp verify
+export ADB_JDBC_URL='jdbc:oracle:thin:@tcps://&lt;host&gt;:&lt;port&gt;/&lt;service&gt;'
+export OCI_COMPARTMENT_ID='&lt;database-compartment-ocid&gt;'
+export OCI_DATABASE_ID='&lt;autonomous-database-ocid&gt;'
+export EXPECTED_DB_USER=TOKEN_INSTANCE_DEMO
+java -cp 'target/classes:target/lib/*' demo.OciWorkloadPrincipalDemo instance check
+java -cp 'target/classes:target/lib/*' demo.OciWorkloadPrincipalDemo instance jdbc
+java -cp 'target/classes:target/lib/*' demo.OciWorkloadPrincipalDemo instance ucp</code></pre></li>
+</ol>
+<p>The program explicitly selects <code>OCI_INSTANCE_PRINCIPAL</code>. The provider uses the VM's instance identity; no OCI CLI login, API-key profile, database password, or explicit access-token-provider property is supplied. Processes on the VM can share its principal, so protect instance metadata access. This flow does not turn a laptop into an OCI instance.</p>
+<h3 id="full-resource-principal-example">OCI_RESOURCE_PRINCIPAL: OCI Data Science notebook</h3>
+<ol>
+<li>Use a dedicated Data Science notebook session with database/IAM connectivity. Open its JupyterLab terminal. Create dynamic group <code>JdbcResourceDemo</code> for only that notebook:
+<pre><code class="language-text">ALL {resource.type = 'datasciencenotebooksession', resource.id = '&lt;notebook-session-ocid&gt;'}</code></pre></li>
+<li>Create its separate, database-scoped policy:
+<pre><code class="language-text">Allow dynamic-group JdbcResourceDemo to use autonomous-database-family in compartment id &lt;database-compartment-ocid&gt; where target.id = '&lt;autonomous-database-ocid&gt;'</code></pre></li>
+<li>As database administrator, create its dedicated global schema:
+<pre><code class="language-sql">CREATE USER TOKEN_RESOURCE_DEMO
+  IDENTIFIED GLOBALLY AS 'IAM_GROUP_NAME=JdbcResourceDemo';
+GRANT CREATE SESSION TO TOKEN_RESOURCE_DEMO;</code></pre></li>
+<li>Install Java 17+ and Maven in the notebook environment, then run in its terminal:
+<pre><code class="language-bash">git clone https://github.com/paulparkinson/oracle-db-examples.git
+cd oracle-db-examples/java/jdbc-token-auth
+mvn -B -ntp verify
+export ADB_JDBC_URL='jdbc:oracle:thin:@tcps://&lt;host&gt;:&lt;port&gt;/&lt;service&gt;'
+export OCI_COMPARTMENT_ID='&lt;database-compartment-ocid&gt;'
+export OCI_DATABASE_ID='&lt;autonomous-database-ocid&gt;'
+export EXPECTED_DB_USER=TOKEN_RESOURCE_DEMO
+java -cp 'target/classes:target/lib/*' demo.OciWorkloadPrincipalDemo resource check
+java -cp 'target/classes:target/lib/*' demo.OciWorkloadPrincipalDemo resource jdbc
+java -cp 'target/classes:target/lib/*' demo.OciWorkloadPrincipalDemo resource ucp</code></pre></li>
+</ol>
+<p>The program explicitly selects <code>OCI_RESOURCE_PRINCIPAL</code>; the SDK reads the service-provided resource-principal environment and credential material. Do not copy these credentials to a laptop or manufacture <code>OCI_RESOURCE_PRINCIPAL_*</code> values. Data Science caches its resource-principal token for 15 minutes, so a policy update may need time to become visible. See <a href="https://docs.oracle.com/en-us/iaas/Content/data-science/using/use-notebook-sessions.htm">the notebook runtime documentation</a>.</p>
+<p><strong>This is not an OKE or GKE workload-identity recipe.</strong> Their Kubernetes service-account identities are not interchangeable with this provider's generic OCI resource-principal environment. Those integrations need separate token and database-acceptance tests. For Base Database Service, use its <code>database-connections</code> policy with <code>target.database.id</code>, not the Autonomous policy above.</p>
+<h3 id="full-workload-java">Complete JDBC and UCP program for both recipes</h3>
+<p>The program below is the exact <code>demo.OciWorkloadPrincipalDemo</code> source in the example project. It uses that project's <code>Settings.validateUrl</code> helper to require TCPS EZConnect+ and reject credentials, aliases and unsafe URL overrides. Build the full project, not this file alone. No <code>tnsnames.ora</code> or <code>dn_match</code> URL setting is required; use a trusted TLS endpoint and configure a wallet separately only if the database requires mTLS.</p>
+<details><summary>Full Java source: explicit identity, read-only verification and bounded UCP</summary>
+<pre><code class="language-java">package demo;
+
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.time.Duration;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
+import oracle.jdbc.datasource.impl.OracleDataSource;
+import oracle.ucp.admin.UniversalConnectionPoolManagerImpl;
+import oracle.ucp.jdbc.PoolDataSourceFactory;
+
+/** Explicit OCI workload identity, with no database password or API-key fallback. */
+public final class OciWorkloadPrincipalDemo {
+    private OciWorkloadPrincipalDemo() { }
+
+    record Config(String url, String expectedUser, Properties properties) { }
+
+    static Config configure(String principal, Map&lt;String, String&gt; env) {
+        String method = switch (principal) {
+            case "instance" -&gt; "OCI_INSTANCE_PRINCIPAL";
+            case "resource" -&gt; "OCI_RESOURCE_PRINCIPAL";
+            default -&gt; throw new IllegalArgumentException("Use instance or resource");
+        };
+        String url = required(env, "ADB_JDBC_URL");
+        Settings.validateUrl(url);
+        String expected = required(env, "EXPECTED_DB_USER");
+        if (!expected.matches("[A-Z][A-Z0-9_]{0,127}"))
+            throw new IllegalArgumentException("EXPECTED_DB_USER must be an uppercase unquoted schema name");
+        Properties properties = new Properties();
+        properties.setProperty("oracle.jdbc.tokenAuthentication", method);
+        properties.setProperty("oracle.jdbc.ociCompartment", required(env, "OCI_COMPARTMENT_ID"));
+        properties.setProperty("oracle.jdbc.ociDatabase", required(env, "OCI_DATABASE_ID"));
+        properties.setProperty("oracle.net.CONNECT_TIMEOUT", "15000");
+        properties.setProperty("oracle.jdbc.ReadTimeout", "30000");
+        return new Config(url, expected, properties);
+    }
+
+    private static String required(Map&lt;String, String&gt; env, String name) {
+        String value = env.get(name);
+        if (value == null || value.isBlank()) throw new IllegalArgumentException("Set " + name);
+        return value;
+    }
+
+    public static void main(String[] args) {
+        try {
+            if (args.length != 2 || !Set.of("check", "jdbc", "ucp").contains(args[1]))
+                throw new IllegalArgumentException("Usage: OciWorkloadPrincipalDemo instance|resource check|jdbc|ucp");
+            Config config = configure(args[0], System.getenv());
+            if (args[1].equals("check")) {
+                System.out.println("Configuration valid; no identity, token, or database test performed.");
+                return;
+            }
+            // The runtime supplies instance metadata or resource-principal credentials.
+            // Selecting a method does not create that identity on a developer laptop.
+            if (args[1].equals("jdbc")) {
+                OracleDataSource ds = new OracleDataSource();
+                ds.setURL(config.url());
+                ds.setConnectionProperties(config.properties());
+                try (Connection connection = ds.getConnection()) {
+                    verify(connection, config.expectedUser());
+                }
+            } else {
+                var pool = PoolDataSourceFactory.getPoolDataSource();
+                String name = "WorkloadPrincipalDemo";
+                pool.setConnectionPoolName(name);
+                pool.setConnectionFactoryClassName(OracleDataSource.class.getName());
+                pool.setURL(config.url());
+                pool.setConnectionProperties(config.properties());
+                pool.setInitialPoolSize(0);
+                pool.setMinPoolSize(0);
+                pool.setMaxPoolSize(2);
+                pool.setConnectionWaitDuration(Duration.ofSeconds(20));
+                pool.setValidateConnectionOnBorrow(true);
+                var manager = UniversalConnectionPoolManagerImpl.getUniversalConnectionPoolManager();
+                try (Connection connection = pool.getConnection()) {
+                    verify(connection, config.expectedUser());
+                } finally {
+                    if (java.util.Arrays.asList(manager.getConnectionPoolNames()).contains(name))
+                        manager.destroyConnectionPool(name);
+                }
+            }
+        } catch (Exception failure) {
+            // Exception payloads can contain endpoints or credentials. Report codes only.
+            if (failure instanceof IllegalArgumentException) System.err.println(failure.getMessage());
+            else {
+                System.err.println("Connection/identity check failed: " + failure.getClass().getSimpleName());
+                for (Throwable cause = failure; cause != null; cause = cause.getCause())
+                    if (cause instanceof SQLException sql)
+                        System.err.println("Oracle error=" + sql.getErrorCode() + "; SQLState=" + sql.getSQLState());
+            }
+            System.exit(1);
+        }
+    }
+
+    static void verifyIdentity(String expected, String actual, String authentication) throws SQLException {
+        if (!expected.equals(actual) || !"TOKEN_GLOBAL".equals(authentication))
+            throw new SQLException("Unexpected database identity or authentication method");
+    }
+
+    private static void verify(Connection connection, String expected) throws SQLException {
+        try (var statement = connection.prepareStatement("""
+                SELECT SYS_CONTEXT('USERENV','SESSION_USER'),
+                       SYS_CONTEXT('USERENV','AUTHENTICATION_METHOD') FROM dual
+                """)) {
+            statement.setQueryTimeout(20);
+            try (var rows = statement.executeQuery()) {
+                if (!rows.next()) throw new SQLException("Identity query returned no row");
+                verifyIdentity(expected, rows.getString(1), rows.getString(2));
+                System.out.println("PASS: expected schema; authentication=TOKEN_GLOBAL; read-only query completed.");
+            }
+        }
+    }
+}
+</code></pre>
+</details>
+<p><code>check</code> validates configuration without calling OCI or the database. Only <code>jdbc</code>/<code>ucp</code> can print <code>PASS</code> after checking the expected schema and <code>TOKEN_GLOBAL</code>. The two scope properties prevent requesting an intentionally broad database token. JDBC connect/read/query timeouts do not bound the entire cloud token-acquisition operation.</p>
+<p>The short runs do not establish renewal. After initial success, the existing <code>ucp-fresh</code> harness can replace physical connections across token expiry using the matching principal profile. Keep tokens and raw exceptions private. A negative test should use a separate excluded runtime, not revoke a shared production policy. Remove only dedicated example policies, groups, schemas and runtimes when finished.</p>
 <h2 id="option-4-let-the-entra-provider-acquire-the-token">Option 4: Let the Entra provider acquire the token</h2>
 <p>Use the URL of the <strong>Entra-configured</strong> database. Set these non-secret identifiers:</p>
 <pre><code class="language-bash">export AZURE_TENANT_ID='&lt;tenant-id&gt;'
