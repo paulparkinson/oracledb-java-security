@@ -10,6 +10,10 @@ Read [STATUS.md](STATUS.md) before running anything. The repository creates no c
 4. Resolve database IAM enablement, the supported workload mapping and TLS reachability separately. Do not switch an existing database's external identity provider to make a demo work.
 5. Review `config.local.env`, ensure it contains no passwords or tokens, and pin `DEMO_IMAGE` by digest. The example is intentionally not runnable until placeholders are replaced.
 
+For **local administrator verification**, use only the requested repository-root private `.env`: `OCI_DB_ADMIN_PASSWORD` for ADMIN, `OCI_TNS_ADMIN` for the selected wallet, and `OCI_DB_URL` for the verified TCPS EZConnect+ endpoint. `OCI_DB_USERNAME` can name an application user instead; do not pair that username with the ADMIN password. Do not source this private file into a test-pod environment. ADMIN/password success proves that connection path, not OKE token authentication.
+
+If comparing mTLS in OKE, obtain separate approval for copying `cwallet.sso` into the exact test namespace's `jdbc-mtls-wallet` Secret and removing it afterward. It contains private-key material. The optional renderer mounts only that file read-only; no database password is uploaded. Stop rather than overwrite a pre-existing Secret. The original local wallet is not deleted during temporary Secret cleanup.
+
 ## Test sequence and evidence
 
 Use the README procedure in order: identity → token → JDBC → denied-account control → native-provider comparison → renewal. Explicit OKE mode constructs the OKE provider directly; it does not use a credential-discovery chain. The native comparison is separate and must not inherit externally supplied resource-principal credentials.

@@ -9,8 +9,8 @@ Last updated: **2026-10-08**. This is an engineering evaluation, not a productio
 | Check | Observed outcome | Evidence / limit |
 |---|---|---|
 | Public JDBC provider review | Completed | Released OCI provider 1.1.0 and pinned public source select the generic resource-principal builder, not an explicit OKE builder. Runtime equivalence is not established. |
-| Maven compile, package and tests | PASS | 15 JUnit tests, including synthetic token-copy/wipe regression; 2026-10-08 |
-| Kubernetes Job generator tests | PASS | 11 Node tests, including isolation, negative account, digest pinning, source bundle and private evidence opt-in |
+| Maven compile, package and tests | PASS | 18 JUnit tests, including token-copy/wipe and optional wallet configuration; 2026-10-08 |
+| Kubernetes Job generator tests | PASS | 15 Node tests, including read-only certificate-only wallet mounts and credential exclusion |
 | Offline configuration executable | PASS | Ran packaged Java `check` with non-secret example inputs; no network/database call |
 | Blog rendering | PASS | Headless Chromium at 1360px and 390px; image loaded, local links resolve, no page overflow; screenshots visually reviewed |
 | Intended OCI tenancy | Located | Operator read-only inventory confirmed the requested tenancy; resource identifiers kept outside Git |
@@ -19,6 +19,8 @@ Last updated: **2026-10-08**. This is an engineering evaluation, not a productio
 | Explicit OKE identity inside a pod | PASS | `jdbc-allowed-identity-live1`; 18:11:20 UTC |
 | Database-scoped token issuance | PASS | `jdbc-allowed-token-live1`; 18:12:47 UTC; exact financialdb scope |
 | Approved database mapping | PASS | Read-back at 19:04:29 UTC: GLOBAL, exact workload OCID, CREATE SESSION only; existing TOKEN_DEMO preserved |
+| ADMIN/password + selected wallet | PASS | Repository-root .env; TCPS EZConnect+ port 1522; 20:18:47 and 20:21:14 UTC; same database; authentication=PASSWORD |
+| Wallet-mounted OKE token login | NOT RUN | Optional code passes offline tests; wallet export to Kubernetes requires explicit destination approval |
 | Post-mapping JDBC session | FAIL | Final-source `jdbc-allowed-jdbc-mappedfinal`; 19:18:20 UTC; ORA-01017; no successful workload SQL session |
 | Negative service-account control | PASS (rejected) | Post-mapping `jdbc-denied-token-mapped1`; 19:04:23 UTC; identity succeeds, token request returns HTTP 404 NotAuthorizedOrNotFound |
 | Token identity/scope diagnostics | PASS (limited) | Fresh token subject hash equals the mapped subject; workload type, unexpired token, past issue time, database/compartment scope present. These local checks do not establish database acceptance. |
@@ -29,7 +31,7 @@ Last updated: **2026-10-08**. This is an engineering evaluation, not a productio
 
 ## Open decisions and prerequisites
 
-1. **ADMIN access recovered:** after the operator corrected the password and wallet, the read-only ADMIN retry succeeded against financialdb. This verification used wallet-free TCPS EZConnect+ on port 1521, so it verifies the corrected credential and TLS connection, not the replacement wallet.
+1. **ADMIN access and selected wallet verified:** the latest read-only checks use `oracledb-java-security/.env`, its ADMIN password and wallet, and TCPS EZConnect+ on port 1522. They succeed against the same financialdb. The earlier port-1521 test did not use a wallet; the new test does. The local `.env` alias mismatch was corrected without changing credentials.
 2. ADMIN inspection confirms `identity_provider_type=OCI_IAM`. With explicit approval, created `OKE_JDBC_DEMO` using the privately verified workload subject and granted only CREATE SESSION. Existing `TOKEN_DEMO` and the identity provider were preserved. Read-back verified the exact mapping and absence of additional direct grants.
 3. Resolve the remaining server rejection before testing renewal. A correct-looking mapping and token issuance do not prove supported end-to-end workload authentication. Do not add broad IAM/database grants, substitute node credentials, or restart the shared database to conceal or guess at the failure.
 4. Deployment approval was received. Kubernetes authenticated the existing native OCI operator in the intended tenancy; it is not the separate federated email-account profile, whose credentials failed. No claim is made that the federated profile performed these operations.
@@ -61,6 +63,14 @@ Last updated: **2026-10-08**. This is an engineering evaluation, not a productio
 Read-only evidence includes the OKE discovery/workload-identity collectors, exact policy inspection, Job results, and a separate FINANCIAL application session. The collector's keyword-based “anomalies” include normal token projections; they are not independently confirmed incidents.
 
 ## Incident and interruption log
+
+### 2026-10-08 — root .env wallet connection verified
+
+- The requested credential source is now the private repository-root `.env`, not another project's financial setup file.
+- It specified alias `pfinancialdb_tp`, while the selected wallet contains `financialdb_tp`. Resolved the matching wallet endpoint once and replaced only `OCI_DB_URL` with a direct, bounded TCPS EZConnect+ URL. Kept the username, passwords and wallet path unchanged; `.env` remains ignored by Git.
+- ADMIN/password JDBC with that wallet succeeded at 20:18:47 UTC; a second check directly using the corrected `.env` succeeded at 20:21:14 UTC. Both reach the same database as the prior OKE test. Read-only verification still finds OCI_IAM enabled and OKE_JDBC_DEMO GLOBAL/OPEN with CREATE SESSION only.
+- Prepared opt-in read-only certificate-wallet mounting for JDBC Jobs; 18 Java and 15 Node tests pass. This is not an OKE mTLS success claim.
+- Wallet export was blocked by the approval check before any Secret was created: local wallet use does not itself authorize exporting its private-key material to Kubernetes. Requested explicit approval for the exact temporary Secret, cluster, namespace and subsequent removal. No ADMIN password will be uploaded.
 
 ### 2026-10-08 — approved workload mapping created; JDBC rejection persists
 

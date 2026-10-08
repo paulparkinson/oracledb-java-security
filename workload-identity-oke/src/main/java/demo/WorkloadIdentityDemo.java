@@ -116,6 +116,12 @@ public final class WorkloadIdentityDemo {
         ds.setURL(s.url());
         ds.setLoginTimeout(30);
         ds.setConnectionProperty("oracle.jdbc.ReadTimeout", "30000");
+        if (!s.walletDirectory().isEmpty()) {
+            // TLS client certificate only; database authentication remains the OKE token supplier.
+            ds.setConnectionProperty("oracle.net.wallet_location",
+                    "(SOURCE=(METHOD=FILE)(METHOD_DATA=(DIRECTORY=" + s.walletDirectory() + ")))");
+            ds.setConnectionProperty("oracle.net.ssl_server_dn_match", "true");
+        }
         return ds;
     }
 

@@ -47,4 +47,7 @@ class SettingsTest {
     @Test void roundsBounded() { var e=valid();e.put("TEST_ROUNDS","121");assertThrows(IllegalArgumentException.class,()->Settings.from(e,"jdbc")); }
     @Test void identityDoesNotRequireDatabase() { assertEquals("identity",Settings.from(Map.of("OCI_REGION","eu-frankfurt-1"),"identity").mode()); }
     @Test void tokenDoesNotRequireUrl() { var e=valid();e.remove("DB_JDBC_URL");e.remove("EXPECTED_DB_USER");assertEquals("token",Settings.from(e,"token").mode()); }
+    @Test void optionalWalletUsesOnlyDedicatedMount() { var e=valid();e.put("DB_WALLET_DIR","/var/run/oracle-wallet");assertEquals("/var/run/oracle-wallet",Settings.from(e,"jdbc").walletDirectory()); }
+    @Test void arbitraryWalletPathRejected() { var e=valid();e.put("DB_WALLET_DIR","/tmp/other");assertThrows(IllegalArgumentException.class,()->Settings.from(e,"jdbc")); }
+    @Test void walletNotNeededForTokenAcquisition() { var e=valid();e.put("DB_WALLET_DIR","/var/run/oracle-wallet");assertThrows(IllegalArgumentException.class,()->Settings.from(e,"token")); }
 }

@@ -4,7 +4,7 @@ import java.util.Map;
 import java.util.Set;
 
 record Settings(String mode, String region, String compartment, String database, String url,
-                String expectedUser, int rounds, int intervalSeconds) {
+                String expectedUser, int rounds, int intervalSeconds, String walletDirectory) {
     static Settings from(Map<String, String> env, String mode) {
         if (!Set.of("check", "identity", "token", "jdbc", "native-resource-principal").contains(mode))
             throw new IllegalArgumentException("Unknown mode");
@@ -14,7 +14,11 @@ record Settings(String mode, String region, String compartment, String database,
         }
         String region = required(env, "OCI_REGION");
         if (!region.matches("[a-z]+-[a-z]+-[0-9]+")) throw new IllegalArgumentException("Invalid OCI_REGION");
-        if (mode.equals("identity")) return new Settings(mode, region, "", "", "", "", 1, 0);
+        String wallet = env.getOrDefault("DB_WALLET_DIR", "");
+        if (!wallet.isEmpty() && (!wallet.equals("/var/run/oracle-wallet") ||
+                !Set.of("check", "jdbc", "native-resource-principal").contains(mode)))
+            throw new IllegalArgumentException("Wallet must use the dedicated read-only JDBC mount");
+        if (mode.equals("identity")) return new Settings(mode, region, "", "", "", "", 1, 0, "");
         String compartment = required(env, "OCI_COMPARTMENT_ID");
         String database = required(env, "OCI_DATABASE_ID");
         if (!compartment.matches("ocid1\\.compartment\\.[a-z0-9.-]+") ||
@@ -29,7 +33,7 @@ record Settings(String mode, String region, String compartment, String database,
         }
         int rounds = number(env, "TEST_ROUNDS", 1, 1, 120);
         int interval = number(env, "TEST_INTERVAL_SECONDS", 0, 0, 3600);
-        return new Settings(mode, region, compartment, database, url, user, rounds, interval);
+        return new Settings(mode, region, compartment, database, url, user, rounds, interval, wallet);
     }
     String scope() { return "urn:oracle:db::id::" + compartment + "::" + database; }
     private static String required(Map<String,String> env, String name) {

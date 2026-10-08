@@ -2,6 +2,8 @@
 
 **Live status: OKE identity and financialdb-scoped token PASS; unauthorized service account rejected; workload JDBC login still fails with ORA-01017.** With approval, `OKE_JDBC_DEMO` was created and mapped to the verified workload OCID, with only `CREATE SESSION`. Read-back confirms the mapping and grants; the post-creation JDBC test still fails. See [STATUS.md](STATUS.md) for evidence and blockers, [OPERATIONS.md](OPERATIONS.md) for recovery/cleanup, and [blog.html](blog.html) for the article.
 
+**ADMIN/password JDBC works.** The repository-root private `.env` and its selected wallet were verified over TCPS EZConnect+ on port 1522. Its original alias was not present in that wallet and was replaced locally with the verified endpoint. This ADMIN check is separate from the passwordless OKE token test; no ADMIN credentials are passed to the workload.
+
 ## Question being tested
 
 Can a Java pod use OKE workload identity to obtain an OCI database proof-of-possession token and log in through JDBC without an application-managed long-lived secret? Does the existing JDBC `OCI_RESOURCE_PRINCIPAL` setting work unchanged?
@@ -38,6 +40,17 @@ java -cp 'target/workload-identity-oke-0.1.0.jar:target/lib/*' demo.WorkloadIden
 ```
 
 Never mount `~/.oci`, passwords or static token files into the test pod. Do not use the local operator's API key as a substitute for pod identity.
+
+### Optional mutual-TLS wallet
+
+For a database-provided mTLS endpoint, the harness supports a separately approved TLS wallet mount. It does not turn the workload into an ADMIN/password connection. Keep the endpoint in `DB_JDBC_URL` as TCPS EZConnect+, with the same bounded timeouts as the example; do not use a TNS alias.
+
+1. Obtain explicit approval to copy the selected wallet into the exact cluster/namespace: it contains sensitive private-key material. Do not infer this approval merely from permission to test a local connection.
+2. After approval, create a dedicated Secret named `jdbc-mtls-wallet` in `jdbc-workload-identity` containing **only** the `cwallet.sso` key. Refuse to overwrite an existing Secret. Never put wallet bytes in Git or ConfigMaps.
+3. Set `DEMO_USE_MTLS_WALLET=true` when generating a `jdbc` or `native-resource-principal` Job. The generator mounts only that file read-only at `/var/run/oracle-wallet`, with mode 0440 and the existing non-root filesystem group. It does not copy root `.env` values or database passwords into the pod.
+4. Read the authentication outcome separately from TLS connectivity. After the test finishes, remove the temporary Secret under the approved cleanup scope; preserve the original local wallet.
+
+With the flag omitted, the existing wallet-free TLS path is unchanged. Wallet-mounted OKE testing is currently **NOT RUN**, pending explicit approval of the wallet export. The successful ADMIN test used the wallet locally.
 
 ## Live test procedure — approval required
 

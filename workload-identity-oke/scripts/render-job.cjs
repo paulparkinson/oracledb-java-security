@@ -22,4 +22,11 @@ keys.push('TEST_ROUNDS','TEST_INTERVAL_SECONDS');
 const suffix=env.DEMO_RUN_ID || 'manual';
 if(!/^[a-z0-9-]{1,12}$/.test(suffix))throw Error('DEMO_RUN_ID must be a short DNS label');
 const job={apiVersion:'batch/v1',kind:'Job',metadata:{name:`jdbc-${serviceAccount==='jdbc-denied'?'denied':'allowed'}-${mode}-${suffix}`,namespace:'jdbc-workload-identity',labels:{'app.kubernetes.io/part-of':'oracledb-java-security'}},spec:{backoffLimit:0,activeDeadlineSeconds:deadline,ttlSecondsAfterFinished:86400,template:{spec:{serviceAccountName:serviceAccount,automountServiceAccountToken:true,restartPolicy:'Never',securityContext:{runAsNonRoot:true,runAsUser:10001,runAsGroup:10001,fsGroup:10001,seccompProfile:{type:'RuntimeDefault'}},containers:[{name:'test',image:env.DEMO_IMAGE,args:[mode],env:keys.filter(k=>env[k]).map(name=>({name,value:env[name]})),resources:{requests:{cpu:'100m',memory:'256Mi'},limits:{cpu:'500m',memory:'512Mi'}},securityContext:{allowPrivilegeEscalation:false,readOnlyRootFilesystem:true,capabilities:{drop:['ALL']}},volumeMounts:[{name:'tmp',mountPath:'/tmp'}]}],volumes:[{name:'tmp',emptyDir:{sizeLimit:'64Mi'}}]}}}};
+if(env.DEMO_USE_MTLS_WALLET){
+  if(env.DEMO_USE_MTLS_WALLET!=='true'||!['jdbc','native-resource-principal'].includes(mode))throw Error('Wallet is opt-in for JDBC modes only');
+  const pod=job.spec.template.spec;
+  pod.volumes.push({name:'oracle-wallet',secret:{secretName:'jdbc-mtls-wallet',defaultMode:0o440,items:[{key:'cwallet.sso',path:'cwallet.sso'}]}});
+  pod.containers[0].volumeMounts.push({name:'oracle-wallet',mountPath:'/var/run/oracle-wallet',readOnly:true});
+  pod.containers[0].env.push({name:'DB_WALLET_DIR',value:'/var/run/oracle-wallet'});
+}
 console.log(JSON.stringify(job,null,2));
