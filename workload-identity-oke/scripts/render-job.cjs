@@ -1,0 +1,21 @@
+// Generates a manifest only. Does not contact OCI or Kubernetes.
+const modes = new Set(['identity', 'token', 'jdbc', 'native-resource-principal']);
+const mode = process.argv[2];
+if (!modes.has(mode)) throw Error('Specify identity, token, jdbc, or native-resource-principal');
+const env = process.env;
+if (!/^\S+@sha256:[a-f0-9]{64}$/.test(env.DEMO_IMAGE || '')) throw Error('Set DEMO_IMAGE to an immutable registry image digest');
+const serviceAccount = env.DEMO_SERVICE_ACCOUNT || 'jdbc-allowed';
+if (!['jdbc-allowed','jdbc-denied'].includes(serviceAccount)) throw Error('Unexpected service account');
+const keys = ['OCI_REGION'];
+if (mode !== 'identity') keys.push('OCI_COMPARTMENT_ID','OCI_DATABASE_ID');
+if (['jdbc','native-resource-principal'].includes(mode)) keys.push('DB_JDBC_URL','EXPECTED_DB_USER');
+for (const key of keys) if (!env[key]) throw Error('Missing '+key);
+const rounds=Number(env.TEST_ROUNDS||1),interval=Number(env.TEST_INTERVAL_SECONDS||0);
+if (!Number.isInteger(rounds)||rounds<1||rounds>120||!Number.isInteger(interval)||interval<0||interval>3600) throw Error('Invalid round or interval bounds');
+const deadline=300+(rounds-1)*interval;
+if(deadline>7200)throw Error('Test job duration exceeds two-hour evaluation limit');
+keys.push('TEST_ROUNDS','TEST_INTERVAL_SECONDS');
+const suffix=env.DEMO_RUN_ID || 'manual';
+if(!/^[a-z0-9-]{1,12}$/.test(suffix))throw Error('DEMO_RUN_ID must be a short DNS label');
+const job={apiVersion:'batch/v1',kind:'Job',metadata:{name:`jdbc-${serviceAccount==='jdbc-denied'?'denied':'allowed'}-${mode}-${suffix}`,namespace:'jdbc-workload-identity',labels:{'app.kubernetes.io/part-of':'oracledb-java-security'}},spec:{backoffLimit:0,activeDeadlineSeconds:deadline,ttlSecondsAfterFinished:86400,template:{spec:{serviceAccountName:serviceAccount,automountServiceAccountToken:true,restartPolicy:'Never',securityContext:{runAsNonRoot:true,runAsUser:10001,runAsGroup:10001,fsGroup:10001,seccompProfile:{type:'RuntimeDefault'}},containers:[{name:'test',image:env.DEMO_IMAGE,args:[mode],env:keys.filter(k=>env[k]).map(name=>({name,value:env[name]})),resources:{requests:{cpu:'100m',memory:'256Mi'},limits:{cpu:'500m',memory:'512Mi'}},securityContext:{allowPrivilegeEscalation:false,readOnlyRootFilesystem:true,capabilities:{drop:['ALL']}},volumeMounts:[{name:'tmp',mountPath:'/tmp'}]}],volumes:[{name:'tmp',emptyDir:{sizeLimit:'64Mi'}}]}}}};
+console.log(JSON.stringify(job,null,2));

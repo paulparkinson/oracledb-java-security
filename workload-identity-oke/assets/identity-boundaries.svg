@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="540" viewBox="0 0 1200 540" role="img" aria-labelledby="title desc">
+  <title id="title">Oracle AI Database: three identity boundaries to verify</title>
+  <desc id="desc">An OKE Java pod acquires its workload signing identity, requests a scoped database token, and attempts a JDBC session. Each stage requires independent evidence; cloud validation is pending.</desc>
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 10 5 0 10" fill="#695d54"/></marker></defs>
+  <rect width="1200" height="540" fill="#f6f3ee"/>
+  <rect width="14" height="540" fill="#c74634"/>
+  <g font-family="Arial, Helvetica, sans-serif">
+    <text x="55" y="67" fill="#a73425" font-size="22" font-weight="700">ORACLE AI DATABASE · JAVA SECURITY</text>
+    <text x="55" y="122" fill="#282521" font-size="37" font-weight="700">A workload identity is not a database login</text>
+    <text x="55" y="164" fill="#62584f" font-size="23">Verify the principal, the scoped token, and the SQL session separately.</text>
+    <g fill="#fff" stroke="#b4aaa0" stroke-width="2">
+      <rect x="55" y="222" width="320" height="165" rx="12"/>
+      <rect x="440" y="222" width="320" height="165" rx="12"/>
+      <rect x="825" y="222" width="320" height="165" rx="12"/>
+    </g>
+    <g fill="none" stroke="#695d54" stroke-width="3" marker-end="url(#arrow)"><path d="M385 303H428"/><path d="M770 303H813"/></g>
+    <g fill="#282521" font-size="24" font-weight="700">
+      <text x="79" y="267">1 · OKE identity</text><text x="464" y="267">2 · Database token</text><text x="849" y="267">3 · JDBC session</text>
+    </g>
+    <g fill="#62584f" font-size="20">
+      <text x="79" y="314">Cluster + namespace</text><text x="79" y="346">+ service account</text>
+      <text x="464" y="314">Exact database scope</text><text x="464" y="346">+ proof-of-possession key</text>
+      <text x="849" y="314">TCPS EZConnect+</text><text x="849" y="346">+ expected database user</text>
+    </g>
+    <text x="55" y="452" fill="#a73425" font-size="23" font-weight="700">Evaluation architecture — live validation pending</text>
+    <text x="55" y="491" fill="#62584f" font-size="20">No password, API-key or node-principal fallback in the explicit OKE path.</text>
+  </g>
+</svg>

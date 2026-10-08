@@ -1,0 +1,3 @@
+# Candidate policy for a scoped database-token experiment, NOT proof of database-login support.
+# Replace the three OCIDs before requesting operator approval. Never add jdbc-denied.
+Allow any-user to use autonomous-database-family in compartment id <database-compartment-ocid> where all {request.principal.type = 'workload', request.principal.cluster_id = '<cluster-ocid>', request.principal.namespace = 'jdbc-workload-identity', request.principal.service_account = 'jdbc-allowed', target.database.id = '<autonomous-database-ocid>'}

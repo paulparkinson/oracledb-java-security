@@ -1,0 +1,14 @@
+.DS_Store
+.env
+.env.*
+!*.example
+**/target/
+**/*.local.*
+**/private/
+**/evidence-raw/
+**/*kubeconfig*
+**/*wallet*/
+**/*.pem
+**/*.key
+**/terraform.tfstate*
+**/.terraform/
