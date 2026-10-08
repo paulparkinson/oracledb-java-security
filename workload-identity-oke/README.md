@@ -1,6 +1,6 @@
 # OKE workload identity → Oracle Database JDBC evaluation
 
-**Live status: OKE identity and financialdb-scoped token PASS; unauthorized service account rejected; JDBC login fails with ORA-01017.** Database-side inspection needs a working ADMIN credential. See [STATUS.md](STATUS.md) for evidence and blockers, [OPERATIONS.md](OPERATIONS.md) for recovery/cleanup, and [blog.html](blog.html) for the article.
+**Live status: OKE identity and financialdb-scoped token PASS; unauthorized service account rejected; the last workload JDBC login failed with ORA-01017.** ADMIN access now works and confirms OCI_IAM is enabled; the dedicated OKE_JDBC_DEMO user is absent. Its creation awaits explicit approval before another end-to-end test. See [STATUS.md](STATUS.md) for evidence and blockers, [OPERATIONS.md](OPERATIONS.md) for recovery/cleanup, and [blog.html](blog.html) for the article.
 
 ## Question being tested
 

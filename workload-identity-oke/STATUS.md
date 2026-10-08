@@ -27,8 +27,8 @@ Last updated: **2026-10-08**. This is an engineering evaluation, not a productio
 
 ## Open decisions and prerequisites
 
-1. Obtain the current financialdb ADMIN credential through the existing private financial setup configuration. Its stored ADMIN login returns ORA-01017. The FINANCIAL application account successfully opens a session but cannot query V$PARAMETER (ORA-00942). Do not reset passwords or grant the application account administrative privileges.
-2. Inspect `identity_provider_type` and existing global mappings. Oracle documents exclusive `IAM_PRINCIPAL_OCID` mappings, and an A-Team article applies this to OKE workloads. Validate the actual workload subject against that mechanism; do not invent a dynamic-group mapping or replace another external identity provider.
+1. **ADMIN access recovered:** after the operator corrected the password and wallet, the read-only ADMIN retry succeeded against financialdb. This verification used wallet-free TCPS EZConnect+ on port 1521, so it verifies the corrected credential and TLS connection, not the replacement wallet.
+2. ADMIN inspection confirms `identity_provider_type=OCI_IAM`. `TOKEN_DEMO` exists with GLOBAL authentication; `OKE_JDBC_DEMO` does not exist. Preserve that existing user and the current identity provider. Oracle documents exclusive `IAM_PRINCIPAL_OCID` mappings, and an A-Team article applies this to OKE workloads. Validate the actual workload subject against that mechanism; do not invent a dynamic-group mapping.
 3. Create only an explicitly approved dedicated mapping with CREATE SESSION, if the database configuration supports it, and rerun JDBC, negative and renewal tests. No schema mapping has been created yet.
 4. Deployment approval was received. Kubernetes authenticated the existing native OCI operator in the intended tenancy; it is not the separate federated email-account profile, whose credentials failed. No claim is made that the federated profile performed these operations.
 5. Docker was unavailable; the live evaluation used a public, digest-pinned Maven container to build the source in a bounded Job. No image registry credential was added. Repository visibility remains private; internal correspondence is excluded.
@@ -47,13 +47,20 @@ Last updated: **2026-10-08**. This is an engineering evaluation, not a productio
 
 | Hypothesis | Confidence | Evidence / gap |
 |---|---|---|
-| Database IAM configuration or workload mapping is missing/incompatible | Medium, 7/10 | OKE and scoped token succeed; JDBC gets ORA-01017. Database admin inspection is blocked, so the exact setting is unconfirmed. |
+| Dedicated expected database user is missing | Confirmed | ADMIN inspection now succeeds: OCI_IAM is enabled, but OKE_JDBC_DEMO is absent. Creating the approved mapping and rerunning JDBC is still required to establish end-to-end success. |
 | Native JDBC resource-principal acquisition is not configured for this OKE pod | High, 8/10 | Separate unchanged-provider Job fails with ORA-18726, before a SQL session; no resource-principal environment was injected. |
 | Current financialdb or cluster outage | Low, 1/10 | Nodes Ready; workload token tests complete; existing FINANCIAL application login succeeds. |
 
 Read-only evidence includes the OKE discovery/workload-identity collectors, exact policy inspection, Job results, and a separate FINANCIAL application session. The collector's keyword-based “anomalies” include normal token projections; they are not independently confirmed incidents.
 
 ## Incident and interruption log
+
+### 2026-10-08 — ADMIN access recovered
+
+- Operator reported correcting an old wallet and an incorrect password.
+- Read-only ADMIN connection now succeeds against the intended financialdb. The check uses server-authenticated TLS without a wallet; replacement-wallet validation is outside this result.
+- Confirmed OCI_IAM is already enabled and the proposed OKE_JDBC_DEMO user is absent. Existing TOKEN_DEMO is GLOBAL; it was not modified.
+- Requested explicit approval to create only OKE_JDBC_DEMO, mapped to the privately verified workload subject, with CREATE SESSION only. No database mutation has been performed; previous workload JDBC and native-provider failures remain the last observed results.
 
 ### 2026-10-08 — database-side verification blocked
 
