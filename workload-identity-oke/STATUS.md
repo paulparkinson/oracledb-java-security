@@ -18,6 +18,8 @@
 
 ## Remaining decision
 
+- Use the [succinct engineering handoff and existing reproducer](ENGINEERING-HANDOFF.md). Lead with database-server IAM authentication and OCI IAM token engineering; no second-database comparison or GKE migration is planned.
+
 - A fix requires identifying the database's workload-specific rejection or a verified mapping/configuration applicable to this deployment. No safe configuration-only fix has been established. Repeating password tests, broadening policy or silently switching principals does not resolve the goal.
 - No support request is planned. Further tests that change IAM, mappings, database settings or deployment targets require approval.
 
