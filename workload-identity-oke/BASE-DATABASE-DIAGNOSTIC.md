@@ -47,7 +47,7 @@
 
 - Original server network configuration restored; diagnostic tracing disabled.
 - All temporary test Jobs, source/trust ConfigMaps and SSH Secret removed; namespace inventory confirms none remain. Dedicated IAM policy deleted.
-- DB-system termination requested October 8 at approximately 23:56 UTC; OCI currently reports `TERMINATING`. Its dedicated subnet/security list remain only until the database VNIC is released. Cleanup is not complete until termination and network deletion are verified.
-- Private exact-ID recovery state retained outside Git. Existing financialdb, cluster, VCN and routes are unchanged.
+- **Completed October 9, approximately 00:05 UTC:** OCI confirms the diagnostic DB system `TERMINATED`; its dedicated subnet and security list are deleted. Termination removes the disposable database and attached storage, not just compute power. No test backups were configured.
+- Temporary diagnostic credentials and raw output files removed. A credential-free exact-ID cleanup record remains private and Git-ignored. Existing financialdb, cluster, VCN and routes are unchanged.
 
 [Base Database IAM/TLS](https://docs.oracle.com/en/cloud/paas/base-database/iam/) · [Create a DB system](https://docs.oracle.com/en/cloud/paas/base-database/create-dbs-new/index.html) · [Server tracing](https://docs.oracle.com/en/database/oracle/oracle-database/26/netag/setting-tracing-parameters.html)
