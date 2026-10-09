@@ -6,6 +6,14 @@
 
 ## What we tested
 
+**Yes—the service-account → Proxymux → RPST flow was used:**
+
+1. The test pod uses `serviceAccountName: jdbc-allowed` and `automountServiceAccountToken: true` ([manifest generator](scripts/render-job.cjs)).
+2. `OkeWorkloadIdentityAuthenticationDetailsProvider` reads that token and obtains an OCI Resource Principal Session Token (RPST) through OKE Proxymux. This is the [pinned SDK's implementation](https://github.com/oracle/oci-java-sdk/blob/v3.97.2/bmc-addons/bmc-oke-workload-identity/src/main/java/com/oracle/bmc/auth/okeworkloadidentity/internal/OkeWorkloadIdentityResourcePrincipalsFederationClient.java); our live identity acquisition and subsequent signed OCI database-token requests passed. We did not separately capture Proxymux traffic.
+3. Our [Java code](src/main/java/demo/WorkloadIdentityDemo.java) creates one provider per process and reuses it with SDK-managed caching, following [Oracle's provider-reuse guidance](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contenggrantingworkloadaccesstoresources.htm). Cache/refresh behavior across token expiry has **not** been tested.
+
+**The RPST is not the JDBC database token.** It authenticates the OCI API request for a separate database-scoped proof-of-possession token. Obtaining that database token succeeds with the original policy; opening the database session then fails with `ORA-01017`.
+
 | Target / test | Result |
 | --- | --- |
 | **financialdb — Autonomous Serverless** | Workload login failed in JDBC, Python thin and native SQL*Plus, including JDBC with/without mTLS. A separate operator IAM-token login succeeded against the same endpoint. |
