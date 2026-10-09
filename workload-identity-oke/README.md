@@ -4,6 +4,8 @@
 
 **Not working end to end:** workload-token login fails with `ORA-01017` in Java, Python and native SQL*Plus. A separate operator IAM-token login succeeds against the same financialdb endpoint; it is a control, not a fallback. Native tracing confirms TLS and PoP preparation. See [findings and remaining blocker](STATUS.md).
 
+**New server-side evidence:** an [isolated Base Database comparison](BASE-DATABASE-DIAGNOSTIC.md) exposes an OCI IAM resource-authorization rejection while its operator control succeeds from OKE. It narrows that test's failing stage, not financialdb's underlying cause.
+
 **Independent check:** `scripts/reference-client.py` uses Oracle's Python driver and explicit OKE SDK signer; it also returns ORA-01017. Run only in the approved OKE test pod with `reference-requirements.txt` installed, the same `OCI_REGION`, `OCI_COMPARTMENT_ID`, `OCI_DATABASE_ID`, a TCPS EZConnect+ `DB_DSN`, and the privately verified `EXPECTED_WORKLOAD_SUBJECT`. It never accepts database passwords or substitutes another principal. This is a diagnostic comparison, not a claim of certified workload-identity support. [Driver token authentication](https://python-oracledb.readthedocs.io/en/latest/user_guide/authentication_methods.html#oci-iam-token-based-authentication) · [OKE signer](https://docs.oracle.com/en-us/iaas/tools/python/latest/api/signing.html).
 
 ## Implementation

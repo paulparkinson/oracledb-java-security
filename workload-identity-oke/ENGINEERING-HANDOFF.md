@@ -2,7 +2,7 @@
 
 ## Request to engineering
 
-- Identify the **server-side check returning ORA-01017**: token validation, principal-type handling, or schema resolution.
+- Explain the isolated Base Database's **OCI IAM resource-authorization rejection** (`RESOURCE_AUTHORIZATION_ERROR`, error 10): which permission and principal/target context is evaluated? Determine separately whether financialdb fails at that same check.
 - Confirm support/prerequisites for `IAM_PRINCIPAL_OCID=<workload-subject>` on this Autonomous Serverless build. The failure is reproducible; the responsible component is not established.
 
 ## Evidence to forward
@@ -13,6 +13,7 @@
 - **Control passes:** operator IAM token → same database/endpoint → `TOKEN_DEMO / TOKEN_GLOBAL`. Control ran outside the pod, not in an identical execution environment.
 - **2026-10-08 UTC:** Python failure 21:28:02; SQL*Plus failure 21:52:10; control success 21:54:58. Audit gives 1017, no resolved username/additional reason.
 - **Versions:** JDBC/SQL*Plus 23.26.3.0.0; Java SDK 3.97.2; Python driver 26.0.1 / SDK 2.187.2. Capture the exact server patch build during correlation; control-plane `23ai` is insufficient. [Full findings](STATUS.md).
+- **New Base Database comparison:** server `23.26.3.0.0`, SQL patch `39578879`; workload Python login fails while operator token succeeds **from OKE using the same driver and TLS endpoint**. Server alert identifies IAM resource authorization; corrected PDB scope still fails. [Exact evidence and reproduction](BASE-DATABASE-DIAGNOSTIC.md).
 
 ## Smallest runnable reproducer
 
@@ -31,12 +32,13 @@ PYTHONPATH=/tmp/repro-deps python3 scripts/reference-client.py
 
 ## Best owners
 
-- **Lead: Database Security / server IAM authentication + Autonomous engineering:** identify the rejecting check.
-- **Partner: OCI IAM database-token engineering:** verify workload claims against the database's expectations.
+- **Lead: OCI IAM database authorization + Database Security/server IAM integration:** explain the observed resource-authorization rejection and evaluated policy context.
+- **Partner: Autonomous engineering:** determine whether the original financialdb failure has the same cause. Token and schema checks remain relevant but are not established as the rejecting stage.
 - **Consult OKE Workload Identity** if claim generation is implicated. General Kubernetes operations/JDBC-only investigation are lower priority. This is triage, not fault assignment.
 
 ## Questions that need answers
 
+- First resolve the concrete financialdb policy discrepancy: the deployed dedicated policy uses `target.database.id`; the [Autonomous service example](https://docs.oracle.com/en/cloud/paas/autonomous-database/serverless/adbsb/iam-create-groups-policies.html) uses `target.id`. No financialdb policy change was made in the isolated comparison. A narrow documented-variable test remains outstanding; do not prematurely call this a product defect.
 - Are different claims, mapping syntax or server patches required? Which verifier/mapping branch returns 1017?
 - Reconcile the contradictory [Oracle mapping guidance and A-Team example](SOURCES.md). Do not infer unsupported functionality solely from that contradiction.
 
@@ -46,6 +48,6 @@ PYTHONPATH=/tmp/repro-deps python3 scripts/reference-client.py
 - **Self-managed server:** OS/SYSDBA access permits controlled server-side Oracle Net tracing and ADR inspection. That could narrow the failure, but does not guarantee the internal verifier reason is exposed. See [server tracing](https://docs.oracle.com/en/database/oracle/oracle-database/26/netag/setting-tracing-parameters.html).
 - **Local Docker/Podman database:** do not assume it reproduces this integration. Oracle's [OCI IAM integration environments](https://docs.oracle.com/en/database/oracle/oracle-database/26/dbseg/introduction-authenticating-and-authorizing-iam-users-oracle-dbaas.html) list OCI database services, not arbitrary local database containers. A multitenant CDB is not the same thing as an OCI IAM-enabled cloud service.
 - **ADB Dedicated:** supports OCI IAM, but [ADMIN remains restricted compared with SYS](https://docs.oracle.com/en/cloud/paas/autonomous-database/dedicated/adbdk/index.html). A new Dedicated instance is not a reliable way to obtain unrestricted server tracing.
-- **Best candidate if deeper self-service tracing is needed:** an isolated OCI Base Database Service PDB, which has documented IAM integration and [SSH/SYSDBA access](https://docs.oracle.com/en/cloud/paas/base-database/connect-bequeath/index.html). First verify version/patch compatibility; use newly scoped tokens and narrowly scoped policy/mapping for that target. Trace one failing workload login and one successful control, then restore tracing and retain only sanitized findings. This is a proposed diagnostic experiment, not a fix or an executed test.
+- **Executed self-service comparison:** isolated OCI Base Database Service PDB with SSH/SYSDBA. Its alert log exposes `RESOURCE_AUTHORIZATION_ERROR`, while its operator control succeeds. This narrows the failing stage but does not explain why the policy request is rejected. [Report](BASE-DATABASE-DIAGNOSTIC.md).
 
-The owner subsequently approved an [isolated Base Database diagnostic](BASE-DATABASE-DIAGNOSTIC.md); provisioning has started. That separate experiment does not alter the financialdb findings above. No external engineering message or support request has been submitted.
+The isolated test does not alter financialdb's configuration or prove the same internal cause there. No external engineering message or support request has been submitted.
