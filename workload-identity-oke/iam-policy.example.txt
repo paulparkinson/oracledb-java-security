@@ -1,3 +1,6 @@
 # Candidate policy for a scoped database-token experiment, NOT proof of database-login support.
 # Replace the three OCIDs before requesting operator approval. Never add jdbc-denied.
+# Original tested policy: token issuance succeeds, but database login remains blocked.
+# target.id alone rejected token issuance; combining both exact-target variants did not fix JDBC.
+# See README.md for results; do not treat this candidate as a working deployment recipe.
 Allow any-user to use autonomous-database-family in compartment id <database-compartment-ocid> where all {request.principal.type = 'workload', request.principal.cluster_id = '<cluster-ocid>', request.principal.namespace = 'jdbc-workload-identity', request.principal.service_account = 'jdbc-allowed', target.database.id = '<autonomous-database-ocid>'}
