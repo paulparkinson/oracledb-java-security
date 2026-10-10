@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
-<title>Passwordless Java Connections to Oracle AI Database 26ai with OCI IAM and Microsoft Entra ID</title>
+<title>Passwordless Java Connections to Oracle AI Database with OCI IAM and Microsoft Entra ID</title>
 <meta content="Use Oracle AI Database 26ai and Oracle JDBC token authentication with OCI IAM or Microsoft Entra ID, with runnable JDBC and UCP applications, full Java code, IAM and Entra setup, file tokens, SDK suppliers, and provider extensions." name="description"/>
 <meta content="Paul Parkinson" name="author"/>
 <style>
@@ -61,15 +61,15 @@
 </head>
 <body><main>
 <p class="eyebrow">Oracle AI Database · Java · JDBC · Identity</p>
-<h1>Passwordless Java Connections to Oracle AI Database 26ai with OCI IAM and Microsoft Entra ID</h1>
+<h1>Passwordless Java Connections to Oracle AI Database with OCI IAM and Microsoft Entra ID</h1>
 <p class="subtitle">A complete, runnable guide to OCI and Entra token files and SDK suppliers, JDBC providers and connection pools—with database setup and Microsoft Entra identity configuration.</p>
-<p class="updated">By Paul Parkinson · Updated October 8, 2026 · Workload-principal examples build-tested October 8, 2026</p>
+<p class="updated">By Paul Parkinson · Updated October 10, 2026 · Java examples build-tested October 10, 2026</p>
 <figure class="cover"><img alt="Oracle AI Database security architecture connecting user and workload identities through an application and JDBC to database token validation and least-privilege authorization." height="660" src="deepdatasecurity/images/e2e-security-cover.svg" width="1400"/><figcaption>Cloud identity, database mapping, TLS and token lifecycle work together to authenticate each new physical connection.</figcaption></figure>
 <h2 id="key-takeaways">Key Takeaways</h2>
 <ul>
 <li>Run the same read-only Java application with OCI or Entra token files, application-owned SDK suppliers, or JDBC providers.</li>
 <li>Database trust, principal-to-schema mapping, cloud authorization and TCPS must all agree before a token login can succeed.</li>
-<li>The repository contains complete source, 13 configuration profiles, SQL setup templates, concurrent UCP examples and automated tests.</li>
+<li>The repository contains complete source, configuration profiles including native JDBC properties files, SQL setup templates, concurrent UCP examples and automated tests.</li>
 <li>Verify token refresh with newly created physical connections; reusing an existing pooled session does not prove that refresh works.</li>
 </ul>
 <p>A Java application can authenticate to Oracle AI Database with an OCI IAM or Microsoft Entra ID token instead of passing a database password. For OCI IAM, JDBC proves possession of a private key associated with the token. For Entra ID, it presents an access token intended for the database resource. The database validates that identity and maps it to an authorized schema.</p>
@@ -85,7 +85,7 @@
 <tr><td>OCI provider</td><td>Driver-selected OCI extension</td><td>Provider/cache</td><td><code>oci-config-file.properties</code> and identity-specific profiles</td></tr>
 <tr><td>Entra provider</td><td>Driver-selected Azure extension</td><td>Provider/cache</td><td><code>entra-service-principal.properties</code> and identity-specific profiles</td></tr>
 </tbody></table></div>
-<p>The provider examples use <code>oracle.jdbc.tokenAuthentication=OCI_*</code> or <code>AZURE_*</code>. These settings select the corresponding extension; keep the provider JAR, but omit explicit <code>oracle.jdbc.provider.accessToken</code> settings. File modes use <code>OCI_TOKEN</code> or <code>OAUTH</code>; application-owned SDK modes attach a token supplier instead. Do not combine acquisition mechanisms on one data source. See the <a href="https://docs.oracle.com/en/database/oracle/oracle-database/26/jajdb/oracle/jdbc/OracleConnection.html">JDBC connection-property reference</a>.</p>
+<p>The provider examples use <code>oracle.jdbc.tokenAuthentication=OCI_*</code> or <code>AZURE_*</code>. These settings select the corresponding extension; keep the provider JAR, but omit explicit <code>oracle.jdbc.provider.accessToken</code> settings. File modes use <code>OCI_TOKEN</code> or <code>OAUTH</code>; application-owned SDK modes attach a token supplier instead. Do not combine acquisition mechanisms on one data source. See the <a href="https://docs.oracle.com/en/database/oracle/oracle-database/26/jajdb/oracle/jdbc/OracleConnection.html#CONNECTION_PROPERTY_TOKEN_AUTHENTICATION">JDBC connection-property reference</a>.</p>
 <p>Background: <a href="https://blogs.oracle.com/developers/accessing-autonomous-database-with-iam-token-using-java">Accessing Autonomous Database with IAM token using Java</a> (Jean de Lavarene, Michael McMahon and Nirmala Sundarappa) and <a href="https://blogs.oracle.com/developers/23c-jdbc-extensions-for-oci-iam-azure-ad">23c JDBC seamless authentication with OCI IAM and Azure AD</a> (Jean de Lavarene).</p>
 <h2 id="prerequisites-and-tested-dependency-versions">Prerequisites and tested dependency versions</h2>
 <p>Use JDK 17 or 21, Maven 3.9+, a reachable Autonomous Database, and an identity administrator who can configure the intended mapping. The demo needs only CREATE SESSION after setup and queries DUAL; it creates no application tables. You will also need OCI CLI for file examples and the actual hosting environment for workload identities.</p>
@@ -163,9 +163,8 @@
 <li>Create or select an IAM user and group, for example TokenDemoUsers; add the user to that group. For non-default identity domains use the domain-qualified names supported by your tenancy.</li>
 <li>Create a policy scoped to the target database. Replace each placeholder in this example:</li>
 </ol>
-<p><code>text
-   Allow group TokenDemoUsers to use autonomous-database-family in compartment DemoCompartment
-     where target.id = '&lt;database-ocid&gt;'</code></p>
+<pre><code>Allow group TokenDemoUsers to use autonomous-database-family in compartment DemoCompartment
+  where target.id = '&lt;database-ocid&gt;'</code></pre>
 <ol>
 <li>As ADMIN in SQLcl, SQL*Plus, or Database Actions, enable OCI IAM and map the user. With SQLcl run <code>@sql/oci-setup.sql</code>; Database Actions users should run the SQL statements and replace the prompt variable manually. Enter the exact IAM name; a non-default domain uses <code>domain/name</code>. The script creates TOKEN_DEMO and grants CREATE SESSION. A shared group mapping is included as an alternative. Choose one mapping for this demonstration.</li>
 <li>For local API-key authentication, register an API signing public key with the IAM user and configure the matching private key using <code>oci setup config</code>. Keep it outside the repository. An OCI config profile has <code>user</code>, <code>tenancy</code>, <code>region</code>, <code>fingerprint</code>, and <code>key_file</code> values. The API signing key authenticates the OCI API request; it is different from the per-token proof-of-possession key.</li>
@@ -379,7 +378,30 @@ oracle.jdbc.ociDatabase=${OCI_DATABASE_ID}
 oracle.jdbc.ociConfigFile=${OCI_CONFIG_FILE}
 oracle.jdbc.ociProfile=${OCI_PROFILE}
 </code></pre>
-<p>For instance or resource principals, the matching profiles change <code>oracle.jdbc.tokenAuthentication</code> and omit file/profile settings. For an existing Java application, load these <code>oracle.jdbc.*</code> properties into its <code>OracleDataSource</code> or UCP data source and add the OCI provider dependency. The SQL/query code remains the same. The demo-specific <code>app.*</code> keys and <code>${...}</code> interpolation are implemented by this project's <code>Settings</code> class; Oracle JDBC does not automatically interpret that file format for you.</p>
+<p>For instance or resource principals, the matching profiles change <code>oracle.jdbc.tokenAuthentication</code> and omit file/profile settings. For an existing Java application, load these <code>oracle.jdbc.*</code> properties into its <code>OracleDataSource</code> or UCP data source and add the OCI provider dependency. The SQL/query code remains the same. The existing demo profiles use <code>Settings</code> for their application-specific <code>app.*</code> keys and environment substitution. Passing a <code>Properties</code> object directly to a data source does not itself expand <code>${...}</code>.</p>
+<h3 id="native-jdbc-config-file">Alternative: let JDBC load and expand its properties file</h3>
+<p>Oracle JDBC supports native substitution through <a href="https://docs.oracle.com/en/database/oracle/oracle-database/26/jajdb/oracle/jdbc/OracleConnection.html#CONNECTION_PROPERTY_CONFIG_FILE"><code>oracle.jdbc.configFile</code></a>. The driver reads the file for each physical connection and resolves <code>${NAME}</code> from JVM system properties or environment variables, with system properties taking precedence; an unresolved name fails. This native file contains JDBC properties, not the demo's <code>app.*</code> keys.</p>
+<pre><code class="language-properties"># config/native-oci-instance.properties
+oracle.jdbc.tokenAuthentication=OCI_INSTANCE_PRINCIPAL
+oracle.jdbc.ociCompartment=${OCI_COMPARTMENT_ID}
+oracle.jdbc.ociDatabase=${OCI_DATABASE_ID}
+oracle.net.CONNECT_TIMEOUT=15000
+oracle.jdbc.ReadTimeout=30000
+</code></pre>
+<pre><code class="language-java">OracleDataSource ds = new OracleDataSource();
+ds.setURL(System.getenv("ADB_JDBC_URL")); // TCPS EZConnect+ URL
+ds.setConnectionProperty(OracleConnection.CONNECTION_PROPERTY_CONFIG_FILE,
+    Path.of("config/native-oci-instance.properties").toAbsolutePath().toString());
+try (Connection connection = ds.getConnection()) {
+    // Execute a read-only identity query.
+}
+</code></pre>
+<p>The sample project includes <code>demo.NativeConfigFileDemo</code> and native OCI instance-principal and Entra managed-identity profiles. It delegates property loading to JDBC, validates the TCPS EZConnect+ URL, and queries only the session identity. After building and setting the profile's environment variables, run:</p>
+<pre><code class="language-bash">java -cp 'target/classes:target/lib/*' demo.NativeConfigFileDemo config/native-oci-instance.properties
+# In an authorized Azure managed-identity runtime instead:
+java -cp 'target/classes:target/lib/*' demo.NativeConfigFileDemo config/native-entra-managed.properties
+</code></pre>
+<p>Use trusted files only, keep secrets and wallets out of Git, and retain TLS verification. Native-file wiring is unit-tested; these new entry points are not presented as live cloud login validation.</p>
 <p>The OCI interactive profile uses the same database scope and simply selects <code>OCI_INTERACTIVE</code>:</p>
 <pre><code class="language-properties"># EZConnect+: jdbc:oracle:thin:@tcps://host:port/service
 app.url=${ADB_JDBC_URL}
@@ -942,7 +964,7 @@ public final class TokenAuthDemo {
 </tr>
 <tr>
 <td>config</td>
-<td>13 complete profiles for file, SDK, OCI and Entra methods</td>
+<td>Profiles for file, SDK, OCI and Entra methods, plus native JDBC configuration examples</td>
 </tr>
 <tr>
 <td>sql</td>
