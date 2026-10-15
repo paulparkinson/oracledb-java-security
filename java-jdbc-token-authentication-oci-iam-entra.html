@@ -368,6 +368,9 @@ try (Connection c = reusable.getConnection()) {
 ./run.sh config/oci-interactive.properties jdbc
 </code></pre>
 <p>Run the applicable command in its intended environment. Set <code>oracle.jdbc.tokenAuthentication</code> to <code>OCI_API_KEY</code>, <code>OCI_INSTANCE_PRINCIPAL</code>, <code>OCI_RESOURCE_PRINCIPAL</code>, <code>OCI_DELEGATION_TOKEN</code> (Cloud Shell), or <code>OCI_INTERACTIVE</code>. The driver selects the extension automatically, without explicit access-token-provider properties. The provider acquires and caches tokens. Cloud Shell uses its managed session; interactive authentication opens a browser and requires a usable desktop callback. The config-file provider path is for API-key configuration; use SDK <code>session-token</code> mode for an OCI CLI session-token profile.</p>
+<p>For instance and resource principals, put the token mode directly in the TCPS EZConnect+ URL:</p>
+<pre><code class="language-text">jdbc:oracle:thin:@tcps://&lt;host&gt;:&lt;port&gt;/&lt;service&gt;?token_auth=oci_instance_principal</code></pre>
+<p>For a resource principal, replace <code>oci_instance_principal</code> with <code>oci_resource_principal</code>. Set the database scope (<code>oracle.jdbc.ociCompartment</code> and <code>oracle.jdbc.ociDatabase</code>) as JDBC connection properties; the OCI SDK/provider obtains and caches the token from the runtime identity. Keep the OCI provider dependency on the classpath. This URL can be used with JDBC or UCP.</p>
 <p>The API-key profile supplies all provider properties:</p>
 <pre><code class="language-properties"># EZConnect+: jdbc:oracle:thin:@tcps://host:port/service
 app.url=${ADB_JDBC_URL}
@@ -613,7 +616,10 @@ unset AZURE_CLIENT_SECRET
 ./run.sh config/entra-device-code.properties jdbc
 </code></pre>
 <p>Browser/device-code paths authenticate a human; service-principal/managed-identity paths authenticate a workload. Never use the database resource ID as the Java client's ID. See setup for registration, roles, consent and token-version details.</p>
-<p>The profiles select <code>AZURE_SERVICE_PRINCIPAL</code>, <code>AZURE_MANAGED_IDENTITY</code>, <code>AZURE_INTERACTIVE</code>, or <code>AZURE_DEVICE_CODE</code>. Set <code>oracle.jdbc.azureDatabaseApplicationIdUri</code> to the resource URI without <code>/.default</code> or <code>/session:scope:connect</code>. The service-principal profile is:</p>
+<p>The profiles select <code>AZURE_SERVICE_PRINCIPAL</code>, <code>AZURE_MANAGED_IDENTITY</code>, <code>AZURE_INTERACTIVE</code>, or <code>AZURE_DEVICE_CODE</code>. The connection URL can select the provider mode directly:</p>
+<pre><code class="language-text">jdbc:oracle:thin:@tcps://&lt;host&gt;:&lt;port&gt;/&lt;service&gt;?token_auth=azure_managed_identity</code></pre>
+<p>Change <code>token_auth</code> to <code>azure_service_principal</code>, <code>azure_interactive</code>, or <code>azure_device_code</code> for those flows. Set <code>oracle.jdbc.azureDatabaseApplicationIdUri</code> to the database resource URI without <code>/.default</code> or <code>/session:scope:connect</code> as a JDBC connection property. A user-assigned managed identity or interactive flow can also need client and tenant properties. Never put a client secret or certificate material in a URL.</p>
+<p>The service-principal properties profile is:</p>
 <pre><code class="language-properties"># EZConnect+: jdbc:oracle:thin:@tcps://host:port/service
 app.url=${ADB_JDBC_URL}
 app.mode=provider
