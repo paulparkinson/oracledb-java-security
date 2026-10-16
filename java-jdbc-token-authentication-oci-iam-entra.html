@@ -220,7 +220,7 @@ GRANT CREATE SESSION TO token_demo;
 
 <p>If required, inject <code>oracle.net.wallet_password</code> through the runtime secret facility. The wallet is a TLS credential, not the OCI token directory or Entra JWT file. TLS-only endpoints need no client wallet when the JVM trusts the server CA. Preserve the deployment's transport requirements.</p>
 <h2 id="clone-build-and-run-the-application">Build and run the application</h2>
-<pre><code class="language-bash">git clone https://github.com/paulparkinson/oracle-db-examples.git
+<pre><code class="language-bash">git clone https://github.com/oracle-samples/oracle-db-examples.git
 cd oracle-db-examples/java/jdbc-token-auth
 mvn -B verify
 ./run.sh --help
@@ -239,6 +239,8 @@ export OCI_DB_SCOPE='urn:oracle:db::id::&lt;compartment-ocid&gt;::&lt;database-o
 ./run.sh config/oci-config-file.properties ucp
 </code></pre>
 <p><code>check</code> only validates configuration and makes no cloud/database connection. <code>jdbc</code> opens a physical connection per round. <code>ucp</code> performs four concurrent tasks through a pool of at most two connections, propagates worker failures, and destroys the pool on exit. Windows users can invoke <code>java -cp "target/oracle-jdbc-token-auth-demo-1.0.0.jar;target/lib/*" demo.TokenAuthDemo ...</code> after Maven builds it.</p>
+<p><strong>Interpret a successful run carefully:</strong> <code>TokenAuthDemo.query()</code> prints the session user, authenticated identity and authentication method, but does not assert their expected values. A zero exit status means the connection and query succeeded; manually verify that <code>user</code> is the intended database schema and <code>authentication</code> is <code>TOKEN_GLOBAL</code> before treating the run as proof of token authentication. The separate <code>OciWorkloadPrincipalDemo</code> performs those assertions and prints <code>PASS</code> only when they match.</p>
+<p>Every Java sample connection also sets Oracle JDBC Thin's <code>v$session.program</code> to <code>devrel-developerhub-java-jdbc-token-auth</code>. This is the database-visible program identifier for this sample, using the required <code>devrel-developerhub-&lt;content-name&gt;</code> convention; Oracle JDBC documents this property as the value shown in <code>V$SESSION.PROGRAM</code> (<a href="https://docs.oracle.com/en/database/oracle/oracle-database/26/jajdb/oracle/jdbc/OracleConnection.html#CONNECTION_PROPERTY_THIN_VSESSION_PROGRAM">JDBC connection-property reference</a>).</p>
 <h2 id="option-1-oci-cli-token-files">Option 1: OCI CLI token files</h2>
 <pre><code class="language-bash">umask 077
 oci iam db-token get --profile "$OCI_PROFILE"
@@ -414,7 +416,7 @@ oracle.jdbc.ociCompartment=${OCI_COMPARTMENT_ID}
 oracle.jdbc.ociDatabase=${OCI_DATABASE_ID}
 </code></pre>
 <h3 id="complete-oci-workload-examples">Complete instance- and resource-principal examples</h3>
-<p>The following two recipes run the same complete Java program in different OCI runtimes. <strong>These examples compile and pass automated tests; live Compute/Data Science login and renewal have not yet been validated here.</strong> An API-key login is not evidence for either workload principal. The <a href="https://github.com/paulparkinson/oracle-db-examples/tree/main/java/jdbc-token-auth">source, pinned Maven dependencies and runnable profiles</a> are in <code>oracle-db-examples/java/jdbc-token-auth</code>; the <a href="https://github.com/paulparkinson/oracle-db-examples/blob/main/java/jdbc-token-auth/docs/oci-workload-principals.md">complete deployment guide</a> records the verification boundaries.</p>
+<p>The following two recipes run the same complete Java program in different OCI runtimes. <strong>These examples compile and pass automated tests; live Compute/Data Science login and renewal have not yet been validated here.</strong> An API-key login is not evidence for either workload principal. The <a href="https://github.com/oracle-samples/oracle-db-examples/tree/main/java/jdbc-token-auth">source, pinned Maven dependencies and runnable profiles</a> are in <code>oracle-db-examples/java/jdbc-token-auth</code>; the <a href="https://github.com/oracle-samples/oracle-db-examples/blob/main/java/jdbc-token-auth/docs/oci-workload-principals.md">complete deployment guide</a> records the verification boundaries.</p>
 <p>Use a dedicated IAM-enabled Autonomous AI Database with a TLS endpoint reachable from the workload. Its administrator can enable IAM with the following call if it is not already enabled; do not switch a shared or Entra-configured database for this test:</p>
 <pre><code class="language-sql">BEGIN
   DBMS_CLOUD_ADMIN.ENABLE_EXTERNAL_AUTHENTICATION(type =&gt; 'OCI_IAM');
@@ -432,7 +434,7 @@ END;
   IDENTIFIED GLOBALLY AS 'IAM_GROUP_NAME=JdbcInstanceDemo';
 GRANT CREATE SESSION TO TOKEN_INSTANCE_DEMO;</code></pre></li>
 <li>On the VM, install Java 17+ and Maven, then build and run:
-<pre><code class="language-bash">git clone https://github.com/paulparkinson/oracle-db-examples.git
+<pre><code class="language-bash">git clone https://github.com/oracle-samples/oracle-db-examples.git
 cd oracle-db-examples/java/jdbc-token-auth
 mvn -B -ntp verify
 export ADB_JDBC_URL='jdbc:oracle:thin:@tcps://&lt;host&gt;:&lt;port&gt;/&lt;service&gt;'
@@ -455,7 +457,7 @@ java -cp 'target/classes:target/lib/*' demo.OciWorkloadPrincipalDemo instance uc
   IDENTIFIED GLOBALLY AS 'IAM_GROUP_NAME=JdbcResourceDemo';
 GRANT CREATE SESSION TO TOKEN_RESOURCE_DEMO;</code></pre></li>
 <li>Install Java 17+ and Maven in the notebook environment, then run in its terminal:
-<pre><code class="language-bash">git clone https://github.com/paulparkinson/oracle-db-examples.git
+<pre><code class="language-bash">git clone https://github.com/oracle-samples/oracle-db-examples.git
 cd oracle-db-examples/java/jdbc-token-auth
 mvn -B -ntp verify
 export ADB_JDBC_URL='jdbc:oracle:thin:@tcps://&lt;host&gt;:&lt;port&gt;/&lt;service&gt;'
@@ -501,6 +503,7 @@ public final class OciWorkloadPrincipalDemo {
         if (!expected.matches("[A-Z][A-Z0-9_]{0,127}"))
             throw new IllegalArgumentException("EXPECTED_DB_USER must be an uppercase unquoted schema name");
         Properties properties = new Properties();
+        properties.setProperty("v$session.program", "devrel-developerhub-java-jdbc-token-auth");
         properties.setProperty("oracle.jdbc.tokenAuthentication", method);
         properties.setProperty("oracle.jdbc.ociCompartment", required(env, "OCI_COMPARTMENT_ID"));
         properties.setProperty("oracle.jdbc.ociDatabase", required(env, "OCI_DATABASE_ID"));
@@ -653,17 +656,26 @@ oracle.jdbc.tokenLocation=${ENTRA_DB_TOKEN_FILE}</code></pre>
 
 <p>An Azure CLI producer with the necessary database consent can use <code>az account get-access-token --resource "$ENTRA_DB_APP_ID_URI" --query accessToken -o tsv</code>, redirected to that protected temporary file. CLI sign-in is not itself proof of database permission. An SDK producer can also write a token, as in the file-flow test. JDBC file mode does not invoke either producer.</p>
 <h3>Application-owned Azure Identity acquisition</h3>
-<p>The SDK flow uses <code>AccessToken.createJsonWebToken(jwt.toCharArray())</code>, without the OCI private-key argument. Builder mode passes one token; JDBC and UCP use <code>AccessToken.createJsonWebTokenCache</code> around the acquisition supplier. Re-inject the service-principal credential if you unset it after the provider example.</p>
-<pre><code class="language-properties">app.url=${ADB_JDBC_URL}
+<p>The SDK flow uses <code>AccessToken.createJsonWebToken(jwt.toCharArray())</code>, without the OCI private-key argument. Builder mode passes one token; JDBC and UCP use <code>AccessToken.createJsonWebTokenCache</code> around the acquisition supplier. The checked-in profile is for a service principal and uses the application scope (<code>/.default</code>); human login uses a delegated database scope instead.</p>
+<p>For a directly runnable interactive-browser profile, provide the tenant, public-client ID, database resource URI and delegated scope. Register <code>http://localhost:8400</code> as a redirect URI on the public/native client, grant its delegated permission to the database application's <code>session:scope:connect</code> scope, obtain consent, and assign the user/group the database application's required role.</p>
+<p>Compared with <code>config/entra-sdk.properties</code>, change <code>app.entra.authentication</code> from <code>service-principal</code> to <code>interactive</code>, replace its application <code>/.default</code> scope with the delegated <code>/session:scope:connect</code> scope, add the tenant and public-client IDs, and set the browser redirect URI.</p>
+<pre><code class="language-bash">export AZURE_TENANT_ID='&lt;tenant-id&gt;'
+export AZURE_CLIENT_ID='&lt;public-client-application-id&gt;'
+export ENTRA_DB_APP_ID_URI='https://&lt;tenant-domain&gt;/&lt;database-application-id&gt;'
+export ENTRA_DB_SCOPE="${ENTRA_DB_APP_ID_URI}/session:scope:connect"
+cat &gt; config/entra-sdk-human.local.properties &lt;&lt;'EOF'
+app.url=${ADB_JDBC_URL}
 app.mode=entra-sdk
-app.entra.authentication=service-principal
-app.entra.scope=${ENTRA_DB_SCOPE}</code></pre>
-
-<pre><code class="language-bash">./run.sh config/entra-sdk.properties builder 2
-./run.sh config/entra-sdk.properties jdbc 2
-./run.sh config/entra-sdk.properties ucp</code></pre>
-
-<p>In an ignored local profile, select <code>managed-identity</code>, <code>interactive</code>, <code>device-code</code>, or <code>azure-cli</code> for another Azure Identity credential. Human SDK flows use the delegated database scope; interactive/device-code require <code>app.entra.tenantId</code> and <code>app.entra.clientId</code>, while Azure CLI requires the tenant. Browser login also needs its registered redirect. These are explicit credential choices, not an automatic fallback chain.</p>
+app.entra.authentication=interactive
+app.entra.scope=${ENTRA_DB_SCOPE}
+app.entra.tenantId=${AZURE_TENANT_ID}
+app.entra.clientId=${AZURE_CLIENT_ID}
+app.entra.redirectUri=http://localhost:8400
+EOF
+./run.sh config/entra-sdk-human.local.properties check
+./run.sh config/entra-sdk-human.local.properties jdbc
+./run.sh config/entra-sdk-human.local.properties ucp</code></pre>
+<p>For device-code login, keep the tenant, client, and delegated scope values, change <code>app.entra.authentication=interactive</code> to <code>app.entra.authentication=device-code</code>, and remove <code>app.entra.redirectUri</code>. Device-code login has no browser callback URI. These are explicit credential choices, not an automatic fallback chain.</p>
 <details><summary>Show complete EntraTokens.java</summary>
 <pre><code class="language-java">package demo;
 
